@@ -1,23 +1,24 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Plus, Filter, Grid, List, Clock, Users } from 'lucide-react';
+import { Search, Plus, Filter, Grid, List, Clock, Users, Grip } from 'lucide-react';
 import { agents, agentCategories } from '../data/mock';
+import useWorkflowStore from '../lib/stores/workflowStore';
 
-const AgentLibrary = ({ onAddAgent, selectedAgents, activeTab, templates, onLoadTemplate }) => {
+const AgentLibrary = ({ activeTab, templates, onLoadTemplate }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  const [viewMode, setViewMode] = useState('grid');
+
+  const { nodes } = useWorkflowStore();
 
   const filteredAgents = useMemo(() => {
     let filtered = agents;
 
-    // Filter by category
     if (selectedCategory !== 'all') {
       filtered = filtered.filter(agent => 
         agent.category.toLowerCase() === selectedCategory
       );
     }
 
-    // Filter by search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(agent =>
@@ -30,39 +31,47 @@ const AgentLibrary = ({ onAddAgent, selectedAgents, activeTab, templates, onLoad
     return filtered;
   }, [searchQuery, selectedCategory]);
 
-  const isAgentSelected = (agentId) => {
-    return selectedAgents.some(agent => agent.id === agentId);
+  const isAgentInCanvas = (agentId) => {
+    return nodes.some(node => node.data.id === agentId);
   };
 
-  const handleAddAgent = (agent) => {
-    if (!isAgentSelected(agent.id)) {
-      onAddAgent(agent);
-    }
+  const handleDragStart = (event, agent) => {
+    event.dataTransfer.setData('application/json', JSON.stringify(agent));
+    event.dataTransfer.effectAllowed = 'move';
   };
 
   const AgentCard = ({ agent, variant = 'grid' }) => {
-    const isSelected = isAgentSelected(agent.id);
+    const isInCanvas = isAgentInCanvas(agent.id);
     
     if (variant === 'list') {
       return (
         <div 
           className={`voice-card ${agent.color} flex items-center gap-4 ${
-            isSelected ? 'opacity-60 ring-2 ring-green-300' : 'hover-lift cursor-pointer'
+            isInCanvas ? 'opacity-60 ring-2 ring-green-300' : 'hover-lift cursor-grab active:cursor-grabbing'
           }`}
-          onClick={() => !isSelected && handleAddAgent(agent)}
+          draggable={!isInCanvas}
+          onDragStart={(e) => !isInCanvas && handleDragStart(e, agent)}
         >
-          <div className="w-12 h-12 rounded-lg bg-white flex items-center justify-center text-xl">
-            {agent.icon}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Grip size={16} className="text-gray-400" />
+            <div className="w-12 h-12 rounded-lg bg-white flex items-center justify-center text-xl">
+              {agent.icon}
+            </div>
           </div>
           
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <h3 className="font-medium">{agent.name}</h3>
+              <h3 className="font-medium truncate">{agent.name}</h3>
               <span className="text-xs font-mono uppercase tracking-wider opacity-70">
                 {agent.category}
               </span>
+              {isInCanvas && (
+                <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                  Added
+                </span>
+              )}
             </div>
-            <p className="text-sm opacity-80 mb-2">{agent.description}</p>
+            <p className="text-sm opacity-80 mb-2 line-clamp-1">{agent.description}</p>
             <div className="flex items-center gap-3 text-xs opacity-70">
               <div className="flex items-center gap-1">
                 <Clock size={12} />
@@ -74,16 +83,11 @@ const AgentLibrary = ({ onAddAgent, selectedAgents, activeTab, templates, onLoad
             </div>
           </div>
           
-          <button
-            className={`btn-secondary ${isSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={isSelected}
-            onClick={(e) => {
-              e.stopPropagation();
-              !isSelected && handleAddAgent(agent);
-            }}
-          >
-            {isSelected ? 'Added' : <Plus size={16} />}
-          </button>
+          {!isInCanvas && (
+            <div className="text-xs text-gray-500 opacity-70">
+              Drag to canvas
+            </div>
+          )}
         </div>
       );
     }
@@ -91,36 +95,45 @@ const AgentLibrary = ({ onAddAgent, selectedAgents, activeTab, templates, onLoad
     return (
       <div 
         className={`voice-card ${agent.color} ${
-          isSelected ? 'opacity-60 ring-2 ring-green-300' : 'hover-lift cursor-pointer'
-        }`}
-        onClick={() => !isSelected && handleAddAgent(agent)}
+          isInCanvas 
+            ? 'opacity-60 ring-2 ring-green-300 cursor-default' 
+            : 'hover-lift cursor-grab active:cursor-grabbing'
+        } transition-all duration-200`}
+        draggable={!isInCanvas}
+        onDragStart={(e) => !isInCanvas && handleDragStart(e, agent)}
+        title={isInCanvas ? 'Agent already added to canvas' : 'Drag to add to canvas'}
       >
         <div className="flex items-start justify-between mb-3">
-          <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center text-xl">
-            {agent.icon}
+          <div className="flex items-center gap-2">
+            <Grip size={14} className="text-gray-400" />
+            <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center text-xl">
+              {agent.icon}
+            </div>
           </div>
-          <button
-            className={`btn-secondary p-2 ${isSelected ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={isSelected}
-            onClick={(e) => {
-              e.stopPropagation();
-              !isSelected && handleAddAgent(agent);
-            }}
-          >
-            {isSelected ? 'Added' : <Plus size={16} />}
-          </button>
+          {isInCanvas && (
+            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+              Added
+            </span>
+          )}
         </div>
         
         <h3 className="font-medium mb-1">{agent.name}</h3>
         <p className="text-xs font-mono uppercase tracking-wider opacity-70 mb-2">
           {agent.category}
         </p>
-        <p className="text-sm mb-3 leading-relaxed">{agent.description}</p>
+        <p className="text-sm mb-3 leading-relaxed line-clamp-2">{agent.description}</p>
         
         <div className="flex items-center gap-2 text-xs opacity-70">
           <Clock size={12} />
           <span>{agent.estimatedTime}</span>
         </div>
+
+        {!isInCanvas && (
+          <div className="mt-2 text-xs text-center opacity-70 border-t pt-2" 
+               style={{ borderColor: 'rgba(0, 0, 0, 0.1)' }}>
+            Drag to canvas to add
+          </div>
+        )}
       </div>
     );
   };
@@ -214,6 +227,11 @@ const AgentLibrary = ({ onAddAgent, selectedAgents, activeTab, templates, onLoad
           <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">
             {filteredAgents.length} agents
           </span>
+          {nodes.length > 0 && (
+            <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">
+              {nodes.length} in canvas
+            </span>
+          )}
         </div>
         
         {/* Search */}
@@ -249,10 +267,9 @@ const AgentLibrary = ({ onAddAgent, selectedAgents, activeTab, templates, onLoad
             </button>
           </div>
           
-          <button className="flex items-center gap-2 text-sm opacity-70 hover:opacity-100">
-            <Filter size={14} />
-            Filter
-          </button>
+          <div className="text-xs text-gray-500">
+            Drag agents to canvas
+          </div>
         </div>
       </div>
 
@@ -286,15 +303,20 @@ const AgentLibrary = ({ onAddAgent, selectedAgents, activeTab, templates, onLoad
             </p>
           </div>
         ) : (
-          <div className={viewMode === 'grid' ? 'grid gap-4' : 'space-y-3'}>
-            {filteredAgents.map((agent) => (
-              <AgentCard 
-                key={agent.id} 
-                agent={agent} 
-                variant={viewMode}
-              />
-            ))}
-          </div>
+          <>
+            <div className="mb-4 text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
+              💡 <strong>Tip:</strong> Drag agents from here to the canvas to build your AI team
+            </div>
+            <div className={viewMode === 'grid' ? 'grid gap-4' : 'space-y-3'}>
+              {filteredAgents.map((agent) => (
+                <AgentCard 
+                  key={agent.id} 
+                  agent={agent} 
+                  variant={viewMode}
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { 
   MessageSquare, 
   Play, 
@@ -11,57 +11,70 @@ import {
   CheckCircle,
   Loader
 } from 'lucide-react';
-import AgentCanvas from './AgentCanvas';
+import WorkflowCanvas from './canvas/WorkflowCanvas';
 import AgentLibrary from './AgentLibrary';
 import ChatPanel from './ChatPanel';
 import ExecutionPanel from './ExecutionPanel';
+import useWorkflowStore from '../lib/stores/workflowStore';
 import { agents, workflowTemplates, executionSteps } from '../data/mock';
 
 const WorkflowDesigner = ({ onBackToLanding }) => {
-  const [selectedAgents, setSelectedAgents] = useState([]);
   const [isExecuting, setIsExecuting] = useState(false);
   const [showChat, setShowChat] = useState(true);
   const [showLibrary, setShowLibrary] = useState(true);
   const [showExecution, setShowExecution] = useState(false);
   const [workflowName, setWorkflowName] = useState('My AI Team Workflow');
-  const [activeTab, setActiveTab] = useState('agents'); // 'agents' or 'templates'
+  const [activeTab, setActiveTab] = useState('agents');
 
-  const handleAddAgent = useCallback((agent) => {
-    if (!selectedAgents.find(a => a.id === agent.id)) {
-      setSelectedAgents(prev => [...prev, {
-        ...agent,
-        position: { x: Math.random() * 400, y: Math.random() * 300 },
-        status: 'idle'
-      }]);
-    }
-  }, [selectedAgents]);
+  const {
+    nodes,
+    edges,
+    setCurrentWorkflow,
+    updateNode,
+    clearError
+  } = useWorkflowStore();
 
-  const handleRemoveAgent = useCallback((agentId) => {
-    setSelectedAgents(prev => prev.filter(a => a.id !== agentId));
-  }, []);
-
-  const handleAgentPositionChange = useCallback((agentId, position) => {
-    setSelectedAgents(prev => prev.map(agent => 
-      agent.id === agentId ? { ...agent, position } : agent
-    ));
-  }, []);
+  // Initialize workflow on component mount
+  useEffect(() => {
+    setCurrentWorkflow({
+      id: `workflow-${Date.now()}`,
+      name: workflowName,
+      nodes: [],
+      edges: []
+    });
+    clearError();
+  }, [setCurrentWorkflow, clearError, workflowName]);
 
   const handleLoadTemplate = useCallback((template) => {
-    const templateAgents = template.agents.map(agentId => {
+    const templateNodes = template.agents.map((agentId, index) => {
       const agent = agents.find(a => a.id === agentId);
+      if (!agent) return null;
+      
       return {
-        ...agent,
-        position: { x: Math.random() * 400, y: Math.random() * 300 },
-        status: 'idle'
+        id: `${agent.id}-${Date.now()}-${index}`,
+        type: 'agent',
+        position: { 
+          x: 100 + (index % 3) * 320, 
+          y: 100 + Math.floor(index / 3) * 200 
+        },
+        data: {
+          ...agent,
+          status: 'idle'
+        }
       };
     }).filter(Boolean);
     
-    setSelectedAgents(templateAgents);
+    setCurrentWorkflow({
+      id: `workflow-${Date.now()}`,
+      name: template.name,
+      nodes: templateNodes,
+      edges: []
+    });
     setWorkflowName(template.name);
-  }, []);
+  }, [setCurrentWorkflow]);
 
   const handleExecuteWorkflow = () => {
-    if (selectedAgents.length === 0) {
+    if (nodes.length === 0) {
       alert('Please add at least one agent to your workflow');
       return;
     }
@@ -69,38 +82,52 @@ const WorkflowDesigner = ({ onBackToLanding }) => {
     setIsExecuting(true);
     setShowExecution(true);
     
+    // Update all nodes to running status
+    nodes.forEach(node => {
+      updateNode(node.id, { data: { ...node.data, status: 'running' } });
+    });
+    
     // Mock execution simulation
     setTimeout(() => {
-      setSelectedAgents(prev => prev.map(agent => ({ ...agent, status: 'running' })));
-      
-      setTimeout(() => {
-        setSelectedAgents(prev => prev.map(agent => ({ ...agent, status: 'completed' })));
-        setIsExecuting(false);
-      }, 10000);
-    }, 1000);
+      nodes.forEach(node => {
+        updateNode(node.id, { data: { ...node.data, status: 'completed' } });
+      });
+      setIsExecuting(false);
+    }, 10000);
   };
 
   const handleSaveWorkflow = () => {
-    // Mock save functionality
     const workflow = {
       name: workflowName,
-      agents: selectedAgents,
+      nodes,
+      edges,
       timestamp: new Date().toISOString()
     };
     console.log('Saving workflow:', workflow);
-    alert('Workflow saved successfully!');
+    
+    // Mock save to localStorage
+    try {
+      const savedWorkflows = JSON.parse(localStorage.getItem('saasit-workflows') || '[]');
+      savedWorkflows.push(workflow);
+      localStorage.setItem('saasit-workflows', JSON.stringify(savedWorkflows));
+      alert('Workflow saved successfully!');
+    } catch (error) {
+      console.error('Error saving workflow:', error);
+      alert('Error saving workflow');
+    }
   };
 
   const handleExportWorkflow = () => {
-    // Mock export functionality
     const config = {
       name: workflowName,
-      agents: selectedAgents.map(agent => ({
-        id: agent.id,
-        name: agent.name,
-        category: agent.category,
-        capabilities: agent.capabilities
-      }))
+      agents: nodes.map(node => ({
+        id: node.data.id,
+        name: node.data.name,
+        category: node.data.category,
+        capabilities: node.data.capabilities,
+        position: node.position
+      })),
+      connections: edges
     };
     
     const dataStr = JSON.stringify(config, null, 2);
@@ -112,6 +139,15 @@ const WorkflowDesigner = ({ onBackToLanding }) => {
     linkElement.setAttribute('href', dataUri);
     linkElement.setAttribute('download', exportFileDefaultName);
     linkElement.click();
+  };
+
+  const getTotalEstimatedTime = () => {
+    const totalHours = nodes.reduce((total, node) => {
+      const timeStr = node.data.estimatedTime || '0-0 hours';
+      const maxHours = parseInt(timeStr.split('-')[1] || timeStr.split(' ')[0]);
+      return total + maxHours;
+    }, 0);
+    return totalHours;
   };
 
   return (
@@ -148,7 +184,7 @@ const WorkflowDesigner = ({ onBackToLanding }) => {
           <button 
             onClick={handleExportWorkflow}
             className="btn-secondary"
-            disabled={selectedAgents.length === 0}
+            disabled={nodes.length === 0}
           >
             <Download size={16} className="mr-2" />
             Export
@@ -157,7 +193,7 @@ const WorkflowDesigner = ({ onBackToLanding }) => {
           <button 
             onClick={handleExecuteWorkflow}
             className="btn-primary"
-            disabled={isExecuting || selectedAgents.length === 0}
+            disabled={isExecuting || nodes.length === 0}
           >
             {isExecuting ? (
               <Loader size={16} className="mr-2 animate-spin" />
@@ -184,7 +220,7 @@ const WorkflowDesigner = ({ onBackToLanding }) => {
                 <X size={16} />
               </button>
             </div>
-            <ChatPanel onAddAgent={handleAddAgent} />
+            <ChatPanel />
           </div>
         )}
 
@@ -200,24 +236,19 @@ const WorkflowDesigner = ({ onBackToLanding }) => {
             </button>
           )}
           
-          <AgentCanvas 
-            agents={selectedAgents}
-            onRemoveAgent={handleRemoveAgent}
-            onAgentPositionChange={handleAgentPositionChange}
-            isExecuting={isExecuting}
-          />
+          <WorkflowCanvas isExecuting={isExecuting} />
           
-          {selectedAgents.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center">
+          {nodes.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="text-center max-w-md">
                 <Plus size={48} className="mx-auto mb-4 opacity-30" />
                 <h3 className="heading-2 mb-2">Start Building Your AI Team</h3>
                 <p className="body-medium opacity-70 mb-4">
-                  Drag agents from the library or describe your app in the chat to get started
+                  Drag agents from the library to the canvas or describe your app in the chat to get started
                 </p>
                 <button 
                   onClick={() => setShowLibrary(true)}
-                  className="btn-primary"
+                  className="btn-primary pointer-events-auto"
                 >
                   Browse Agents
                 </button>
@@ -226,7 +257,7 @@ const WorkflowDesigner = ({ onBackToLanding }) => {
           )}
         </div>
 
-        {/* Right Panel - Agent Library or Execution */}
+        {/* Right Panel */}
         {(showLibrary || showExecution) && (
           <div className="w-96 border-l flex flex-col" style={{ borderColor: 'var(--border-light)' }}>
             {/* Tabs */}
@@ -296,12 +327,10 @@ const WorkflowDesigner = ({ onBackToLanding }) => {
               <ExecutionPanel 
                 steps={executionSteps}
                 isExecuting={isExecuting}
-                selectedAgents={selectedAgents}
+                selectedAgents={nodes.map(node => node.data)}
               />
             ) : (
               <AgentLibrary 
-                onAddAgent={handleAddAgent}
-                selectedAgents={selectedAgents}
                 activeTab={activeTab}
                 templates={workflowTemplates}
                 onLoadTemplate={handleLoadTemplate}
@@ -327,16 +356,13 @@ const WorkflowDesigner = ({ onBackToLanding }) => {
            style={{ borderColor: 'var(--border-light)', background: 'var(--bg-card)' }}>
         <div className="flex items-center gap-4">
           <span className="font-mono">
-            {selectedAgents.length} agent{selectedAgents.length !== 1 ? 's' : ''} selected
+            {nodes.length} agent{nodes.length !== 1 ? 's' : ''} selected
           </span>
           <span className="font-mono opacity-60">
-            Est. runtime: {selectedAgents.reduce((total, agent) => {
-              const hours = parseInt(agent.estimatedTime?.split('-')[0] || '0');
-              return total + hours;
-            }, 0)}-{selectedAgents.reduce((total, agent) => {
-              const hours = parseInt(agent.estimatedTime?.split('-')[1] || '0');
-              return total + hours;
-            }, 0)} hours
+            Est. runtime: {getTotalEstimatedTime()} hours
+          </span>
+          <span className="font-mono opacity-60">
+            {edges.length} connection{edges.length !== 1 ? 's' : ''}
           </span>
         </div>
         
