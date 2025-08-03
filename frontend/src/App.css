@@ -312,6 +312,55 @@ body {
 .pad-xl { padding: 3rem; }
 .pad-2xl { padding: 5rem; }
 
+/* Line clamp utilities */
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* React Flow Styles */
+.react-flow {
+  background: var(--bg-page);
+}
+
+.react-flow__node {
+  cursor: grab;
+}
+
+.react-flow__node.dragging {
+  cursor: grabbing;
+}
+
+.react-flow__edge-path {
+  stroke: var(--accent-blue-400);
+  stroke-width: 2;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--accent-orange-400);
+  stroke-width: 3;
+}
+
+.react-flow__handle {
+  background: var(--accent-blue-400);
+  border: 2px solid white;
+  width: 8px;
+  height: 8px;
+}
+
+.react-flow__handle:hover {
+  background: var(--accent-orange-400);
+}
+
 /* Responsive Design */
 @media (max-width: 767px) {
   .hero-section {
@@ -328,4 +377,64 @@ body {
     width: 100%;
     min-height: 3rem;
   }
+}
+
+/* Drag and Drop States */
+.dragging {
+  opacity: 0.8;
+  transform: rotate(5deg);
+  transition: transform 0.2s ease;
+}
+
+.drag-over {
+  background: rgba(59, 130, 246, 0.1);
+  border: 2px dashed var(--accent-blue-400);
+}
+
+/* Agent Card Hover States */
+.voice-card {
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.voice-card:hover .hover-actions {
+  opacity: 1;
+}
+
+.hover-actions {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* Canvas Grid Pattern */
+.react-flow__background {
+  background-color: var(--bg-page);
+}
+
+/* Selection styles */
+.react-flow__node.selected {
+  outline: 2px solid var(--accent-orange-400);
+  outline-offset: 2px;
+}
+
+/* Animation for status changes */
+@keyframes statusPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.status-running {
+  animation: statusPulse 2s infinite;
+}
+
+/* Tooltip styles */
+.tooltip {
+  position: absolute;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  pointer-events: none;
 }
