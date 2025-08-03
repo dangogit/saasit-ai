@@ -10,14 +10,15 @@ import 'reactflow/dist/style.css';
 import useWorkflowStore from '../../lib/stores/workflowStore';
 import AgentNode from './AgentNode';
 
-const nodeTypes = {
-  agent: AgentNode,
-};
-
 // Canvas component without ReactFlowProvider (since it will be wrapped)
 const WorkflowCanvasInner = ({ isExecuting }) => {
   const reactFlowWrapper = useRef(null);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
+  
+  // Memoize nodeTypes to prevent React Flow warnings
+  const nodeTypes = useMemo(() => ({
+    agent: AgentNode,
+  }), []);
   
   const {
     nodes,
