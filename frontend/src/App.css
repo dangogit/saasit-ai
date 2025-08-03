@@ -1,34 +1,331 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
+:root {
+  /* Backgrounds - Exact Colors */
+  --bg-page: #FFF9F2;                    /* Main page background - warm cream */
+  --bg-card: #FFFFFF;                    /* All card backgrounds */
+  --bg-section: rgba(255, 244, 232, 0.6); /* Subtle section backgrounds */
+  --bg-overlay: rgba(255, 255, 255, 0.95); /* Header overlay with blur */
+  
+  /* Text - Exact Colors */
+  --text-primary: #232323;               /* Main headings and content */
+  --text-secondary: #353535;             /* Supporting text */
+  --text-muted: #353535;                /* Captions, meta text */
+  
+  /* Borders - Exact Colors */
+  --border-primary: #999999;             /* Standard borders */
+  --border-input: #999999;               /* Form input borders */
+  --border-input-focus: #4D4D4D;         /* Focused input borders */
+  --border-light: rgba(153, 153, 153, 0.3); /* Subtle dividers */
+
+  /* Voice Interface Accent Colors */
+  --accent-purple-400: #987D9C;     /* Strong purple for highlights */
+  --accent-purple-200: #F9E8FA;     /* Light purple card backgrounds */
+  
+  --accent-blue-400: #768597;       /* Strong blue for highlights */
+  --accent-blue-200: #E4EDF8;       /* Light blue card backgrounds */
+  
+  --accent-orange-400: #BCA182;     /* Strong orange for highlights */
+  --accent-orange-200: #FEEFDC;     /* Light orange card backgrounds */
+  
+  --accent-pink-200: #FCC9C7;       /* Light pink card backgrounds */
+  --accent-green-200: #b8d1ba;      /* Light green card backgrounds */
+  --accent-grey-200: #E9E1E1;       /* Light grey card backgrounds */
+
+  /* Glass Effect Colors */
+  --glass-bg: rgba(255, 255, 255, 0.2);      /* Glass morphism background */
+  --glass-border: rgba(0, 0, 0, 0.1);        /* Glass morphism border */
+
+  /* Hero Gradient System */
+  --gradient-hero-warm: linear-gradient(135deg,
+    rgba(252, 202, 199, 1) 0%,     /* Main peach background */
+    rgba(253, 215, 197, 0.8) 25%,  /* Subtle peach tint */
+    rgba(254, 241, 229, 0.6) 50%,  /* Light cream warmth */
+    rgba(255, 250, 243, 0.8) 75%,  /* Gentle cream warmth */
+    rgba(252, 202, 199, 1) 100%   /* back to same */
+  );
+  
+  --gradient-hero-subtle: linear-gradient(180deg,
+    rgba(252, 202, 199, 0.95) 0%,  /* Soft cream top */
+    rgba(253, 215, 197, 0.8) 40%,    /* Full cream middle */
+    rgba(252, 202, 199, 1) 100%);  /* Solid cream bottom */
+
+  --gradient-divider: linear-gradient(90deg, 
+    transparent 0%, 
+    rgba(153, 153, 153, 0.1) 50%, 
+    transparent 100%);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
+body {
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  margin: 0;
+  padding: 0;
 }
 
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
+/* Typography Scale */
+.font-mono {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
 }
 
-.App-link {
-    color: #61dafb;
+.heading-hero { 
+  font-size: clamp(2rem, 5vw, 3rem); 
+  line-height: 1.1; 
+  font-weight: 600; 
+  letter-spacing: -0.02em; 
+  color: var(--text-primary);
 }
 
-@keyframes App-logo-spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+.heading-1 { 
+  font-size: clamp(1.2rem, 3vw, 1.875rem); 
+  line-height: 1.3; 
+  font-weight: 500; 
+  letter-spacing: -0.01em; 
+  color: var(--text-primary);
+}
+
+.heading-2 { 
+  font-size: clamp(1.25rem, 2.5vw, 1.5rem); 
+  line-height: 1.4; 
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.heading-3 { 
+  font-size: clamp(1.125rem, 2vw, 1.25rem); 
+  line-height: 1.4; 
+  font-weight: 500; 
+  color: var(--text-primary);
+}
+
+.body-large { 
+  font-size: clamp(1rem, 2vw, 1.125rem); 
+  line-height: 1.6; 
+  font-weight: 400; 
+  color: var(--text-primary);
+}
+
+.body-medium { 
+  font-size: 1rem; 
+  line-height: 1.5; 
+  font-weight: 400; 
+  color: var(--text-primary);
+}
+
+.body-small { 
+  font-size: 0.875rem; 
+  line-height: 1.4; 
+  font-weight: 400; 
+  color: var(--text-secondary);
+}
+
+.caption { 
+  font-size: 0.75rem; 
+  line-height: 1.3; 
+  font-weight: 400; 
+  color: var(--text-muted);
+}
+
+/* Button Styles */
+.btn-primary {
+  background: var(--text-primary);
+  color: white;
+  border: none;
+  border-radius: 2rem;
+  padding: 0.75rem 1.2rem;
+  font-family: 'SF Mono', monospace;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  line-height: 1.2;
+}
+
+.btn-primary:hover {
+  background: var(--text-secondary);
+  transform: scale(1.02);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.btn-secondary {
+  background: var(--glass-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--glass-border);
+  border-radius: 2rem;
+  padding: 0.75rem 1.2rem;
+  font-family: 'SF Mono', monospace;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 2.25rem;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  line-height: 1.2;
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(0, 0, 0, 0.2);
+  transform: scale(1.02);
+}
+
+.btn-secondary:active {
+  transform: scale(0.98);
+}
+
+/* Hero Section */
+.hero-section {
+  background: var(--gradient-hero-warm);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 5rem 1.2rem 3rem;
+  position: relative;
+}
+
+.hero-content {
+  max-width: 900px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 2;
+}
+
+.hero-announcement {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 2rem;
+  padding: 0.25rem 0.75rem;
+  margin-bottom: 1.2rem;
+  font-family: 'SF Mono', monospace;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Header Navigation */
+.header-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 999;
+  height: 80px;
+  background: var(--bg-overlay);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.2rem;
+  transition: all 0.3s ease;
+}
+
+.logo {
+  height: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* Voice Cards */
+.voice-card {
+  background: var(--bg-card);
+  border-radius: 0.75rem;
+  padding: 1.2rem;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.voice-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.voice-card.accent-purple { background: var(--accent-purple-200); }
+.voice-card.accent-blue { background: var(--accent-blue-200); }
+.voice-card.accent-orange { background: var(--accent-orange-200); }
+.voice-card.accent-pink { background: var(--accent-pink-200); }
+.voice-card.accent-green { background: var(--accent-green-200); }
+.voice-card.accent-grey { background: var(--accent-grey-200); }
+
+/* Container System */
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 1.2rem;
+}
+
+@media (min-width: 768px) {
+  .container {
+    padding: 0 2.25rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .container {
+    padding: 0;
+  }
+}
+
+/* Spacing System */
+.space-xs { margin: 0.5rem; }
+.space-sm { margin: 1rem; }
+.space-md { margin: 1.2rem; }
+.space-lg { margin: 2rem; }
+.space-xl { margin: 3rem; }
+.space-2xl { margin: 5rem; }
+
+.pad-xs { padding: 0.5rem; }
+.pad-sm { padding: 1rem; }
+.pad-md { padding: 1.2rem; }
+.pad-lg { padding: 2rem; }
+.pad-xl { padding: 3rem; }
+.pad-2xl { padding: 5rem; }
+
+/* Responsive Design */
+@media (max-width: 767px) {
+  .hero-section {
+    padding: 6rem 1rem 2rem;
+    min-height: 80vh;
+  }
+  
+  .header-nav {
+    padding: 0 1rem;
+  }
+  
+  .btn-primary,
+  .btn-secondary {
+    width: 100%;
+    min-height: 3rem;
+  }
 }
