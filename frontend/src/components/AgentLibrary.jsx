@@ -36,8 +36,10 @@ const AgentLibrary = ({ activeTab, templates, onLoadTemplate }) => {
   };
 
   const handleDragStart = (event, agent) => {
+    console.log('Drag started for agent:', agent.name);
     event.dataTransfer.setData('application/json', JSON.stringify(agent));
     event.dataTransfer.effectAllowed = 'move';
+    console.log('Drag data set:', JSON.stringify(agent));
   };
 
   const AgentCard = ({ agent, variant = 'grid' }) => {
