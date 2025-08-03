@@ -50,28 +50,21 @@ const WorkflowCanvasInner = ({ isExecuting }) => {
   const onDrop = useCallback(
     (event) => {
       event.preventDefault();
-      console.log('Drop event triggered');
 
       const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect();
       const agentData = event.dataTransfer.getData('application/json');
       
-      console.log('Agent data from drag:', agentData);
-      console.log('React flow bounds:', reactFlowBounds);
-      console.log('React flow instance:', !!reactFlowInstance);
-      
       if (!agentData || !reactFlowBounds || !reactFlowInstance) {
-        console.log('Missing required data for drop');
         return;
       }
 
       try {
         const agent = JSON.parse(agentData);
-        const position = reactFlowInstance.project({
-          x: event.clientX - reactFlowBounds.left,
-          y: event.clientY - reactFlowBounds.top,
+        // Use the new screenToFlowPosition instead of deprecated project
+        const position = reactFlowInstance.screenToFlowPosition({
+          x: event.clientX,
+          y: event.clientY,
         });
-
-        console.log('Creating node at position:', position);
 
         const newNode = {
           id: `${agent.id}-${Date.now()}`,
@@ -84,7 +77,6 @@ const WorkflowCanvasInner = ({ isExecuting }) => {
           dragHandle: '.drag-handle',
         };
 
-        console.log('Adding node to store:', newNode);
         addNode(newNode);
       } catch (error) {
         console.error('Error parsing agent data:', error);
