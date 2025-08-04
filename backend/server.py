@@ -1,4 +1,5 @@
-from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect, HTTPException, Request
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -11,23 +12,81 @@ import uuid
 from datetime import datetime
 import json
 import asyncio
+from contextlib import asynccontextmanager
+
+# Import app modules
+from app.config import settings
+from app.routers import auth, projects
 from services import ClaudeService, WorkflowGenerator
 
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
-# Create the main app without a prefix
-app = FastAPI()
+# MongoDB client (will be initialized in lifespan)
+client: Optional[AsyncIOMotorClient] = None
+db = None
 
-# Create a router with the /api prefix
-api_router = APIRouter(prefix="/api")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    global client, db
+    try:
+        client = AsyncIOMotorClient(settings.mongo_url)
+        db = client[settings.db_name]
+        app.state.db = db
+        
+        # Create indexes
+        await db.users.create_index("email", unique=True)
+        await db.projects.create_index([("user_id", 1), ("created_at", -1)])
+        
+        logger.info("Connected to MongoDB and created indexes")
+    except Exception as e:
+        logger.error(f"Failed to connect to MongoDB: {e}")
+        raise
+    
+    yield
+    
+    # Shutdown
+    if client:
+        client.close()
+        logger.info("Disconnected from MongoDB")
+
+
+# Create the main app
+app = FastAPI(
+    title=settings.app_name,
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# Create API routers
+api_v1_router = APIRouter(prefix=settings.api_v1_str)
+legacy_api_router = APIRouter(prefix="/api")  # For backward compatibility
+
+
+# Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=settings.backend_cors_origins,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+if not settings.debug:
+    app.add_middleware(
+        TrustedHostMiddleware,
+        allowed_hosts=["*.saasit.ai", "saasit.ai", "localhost"]
+    )
 
 # Define Models
 class StatusCheck(BaseModel):
@@ -50,20 +109,31 @@ class WorkflowGenerateRequest(BaseModel):
     messages: List[ChatMessage]
     project_context: Optional[Dict[str, Any]] = None
 
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
-async def root():
-    return {"message": "Hello World"}
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "version": "1.0.0",
+        "database": "connected" if db else "disconnected"
+    }
 
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
+# Legacy API endpoints (backward compatibility)
+@legacy_api_router.get("/")
+async def root():
+    return {"message": "SaasIt.ai API v1 - Please use /api/v1 endpoints"}
+
+@legacy_api_router.post("/status", response_model=StatusCheck)
+async def create_status_check(input: StatusCheckCreate, request: Request):
+    db = request.app.state.db
     status_dict = input.dict()
     status_obj = StatusCheck(**status_dict)
     _ = await db.status_checks.insert_one(status_obj.dict())
     return status_obj
 
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
+@legacy_api_router.get("/status", response_model=List[StatusCheck])
+async def get_status_checks(request: Request):
+    db = request.app.state.db
     status_checks = await db.status_checks.find().to_list(1000)
     return [StatusCheck(**status_check) for status_check in status_checks]
 
@@ -76,19 +146,19 @@ except ValueError as e:
     claude_service = None
     workflow_generator = None
 
-@api_router.post("/chat")
-async def chat_with_claude(request: ChatRequest):
+@legacy_api_router.post("/chat")
+async def chat_with_claude(chat_request: ChatRequest):
     if not claude_service:
         raise HTTPException(status_code=503, detail="Claude service not available. Please set ANTHROPIC_API_KEY.")
     
     try:
         # Convert messages to Claude format
-        messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
+        messages = [{"role": msg.role, "content": msg.content} for msg in chat_request.messages]
         
         # Use workflow generator for chat
         response = await workflow_generator.generate_workflow(
             conversation_history=messages,
-            stream=False
+            stream=chat_request.stream
         )
         
         # Parse the response
@@ -105,13 +175,13 @@ async def chat_with_claude(request: ChatRequest):
         logger.error(f"Chat error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@api_router.post("/workflow/generate")
-async def generate_workflow(request: WorkflowGenerateRequest):
+@legacy_api_router.post("/workflow/generate")
+async def generate_workflow(workflow_request: WorkflowGenerateRequest):
     if not workflow_generator:
         raise HTTPException(status_code=503, detail="Workflow generator not available. Please set ANTHROPIC_API_KEY.")
     
     try:
-        messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
+        messages = [{"role": msg.role, "content": msg.content} for msg in workflow_request.messages]
         
         response = await workflow_generator.generate_workflow(
             conversation_history=messages,
@@ -185,24 +255,20 @@ async def websocket_chat(websocket: WebSocket):
         logger.error(f"WebSocket error: {e}")
         await websocket.send_json({"type": "error", "error": str(e)})
 
-# Include the router in the main app
-app.include_router(api_router)
+# Include routers
+api_v1_router.include_router(auth.router)
+api_v1_router.include_router(projects.router)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# Mount API versions
+app.include_router(api_v1_router)
+app.include_router(legacy_api_router)  # Legacy support
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
-@app.on_event("shutdown")
-async def shutdown_db_client():
-    client.close()
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "server:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=settings.debug
+    )
