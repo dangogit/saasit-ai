@@ -1,0 +1,154 @@
+# Page snapshot
+
+```yaml
+- banner:
+  - text: SaasIt.ai
+  - button "Sign In"
+  - button "Get Started"
+- text: Visual AI Team Orchestrator
+- heading "Design your AI dev team visually, then watch them build your app" [level=1]
+- paragraph: From idea to Git repo in hours, not weeks. Choose from 40+ specialized AI agents, orchestrate them visually, and deploy to the cloud or export for Claude Code.
+- button "Start Building Now"
+- button "Watch Demo"
+- heading "Why teams choose SaasIt.ai" [level=2]
+- paragraph: Transform your development process with AI agents that understand your stack and build like senior developers.
+- heading "40+ Specialized Agents" [level=3]
+- paragraph: From rapid prototypers to DevOps experts, each agent is trained for specific development tasks.
+- heading "Visual Orchestration" [level=3]
+- paragraph: Drag, drop, and connect agents in an intuitive canvas. See your development pipeline come to life.
+- heading "Hours, Not Weeks" [level=3]
+- paragraph: Go from concept to working application in hours. Perfect for MVPs, prototypes, and rapid iteration.
+- heading "Production Ready" [level=3]
+- paragraph: Deploy directly to cloud or export for Claude Code. Get clean, documented, maintainable code.
+- heading "Smart Templates" [level=3]
+- paragraph: Start with proven agent combinations for SaaS, mobile apps, AI tools, and marketing sites.
+- heading "Ship Faster" [level=3]
+- paragraph: Focus on strategy while AI handles implementation. Perfect for founders and product teams.
+- heading "Simple, transparent pricing" [level=2]
+- paragraph: Start free and scale as you build. No hidden fees, no vendor lock-in.
+- article "Explorer pricing plan":
+  - heading "Explorer" [level=3]
+  - paragraph: Perfect for testing
+  - text: $0/month
+  - paragraph: Get started with basic workflow design
+  - heading "Everything included:" [level=4]
+  - list:
+    - listitem: ✓ 3 workflows per month
+    - listitem: ✓ 10 chat messages per workflow
+    - listitem: ✓ 10 agents max per workflow
+    - listitem: ✓ Export to Claude Code config
+  - heading "Limitations:" [level=4]
+  - list:
+    - listitem: • No cloud execution
+    - listitem: • Limited agent library
+  - button "Start Free"
+- article "Architect pricing plan":
+  - heading "Architect" [level=3]
+  - paragraph: For Claude Code users
+  - text: $20/month
+  - paragraph: Unlimited workflow design with full agent access
+  - heading "Everything included:" [level=4]
+  - list:
+    - listitem: ✓ UNLIMITED workflows
+    - listitem: ✓ UNLIMITED chat messages
+    - listitem: ✓ UNLIMITED agents per workflow
+    - listitem: ✓ Custom agent creation
+    - listitem: ✓ All templates access
+    - listitem: ✓ Version history (30 days)
+  - heading "Limitations:" [level=4]
+  - list:
+    - listitem: • No cloud execution
+  - button "Get Architect"
+- article "Builder pricing plan":
+  - text: Most Popular
+  - heading "Builder" [level=3]
+  - paragraph: Cloud execution included
+  - text: $100/month
+  - paragraph: Everything you need to build and deploy apps
+  - heading "Everything included:" [level=4]
+  - list:
+    - listitem: ✓ Everything in Designer
+    - listitem: ✓ 1 concurrent cloud execution
+    - listitem: ✓ UNLIMITED executions per month
+    - listitem: ✓ 4-hour max runtime per execution
+    - listitem: ✓ Git repository delivery
+    - listitem: ✓ Execution logs (7 days)
+  - button "Start Building"
+- article "Shipper pricing plan":
+  - heading "Shipper" [level=3]
+  - paragraph: For scaling teams
+  - text: $299/month
+  - paragraph: Advanced features for professional development
+  - heading "Everything included:" [level=4]
+  - list:
+    - listitem: ✓ Everything in Starter
+    - listitem: ✓ 3 concurrent executions
+    - listitem: ✓ Priority queue
+    - listitem: ✓ 12-hour max runtime
+    - listitem: ✓ API access (100 calls/day)
+    - listitem: ✓ Team seats (3 included)
+  - button "Scale Up"
+- article "Studio pricing plan":
+  - heading "Studio" [level=3]
+  - paragraph: Enterprise-grade
+  - text: $799/month
+  - paragraph: Full-scale development studio capabilities
+  - heading "Everything included:" [level=4]
+  - list:
+    - listitem: ✓ Everything in Professional
+    - listitem: ✓ 10 concurrent executions
+    - listitem: ✓ Dedicated queue
+    - listitem: ✓ 48-hour max runtime
+    - listitem: ✓ API access (1000 calls/day)
+    - listitem: ✓ Team seats (10 included)
+  - button "Go Enterprise"
+- heading "Ready to build your next app?" [level=2]
+- paragraph: Join thousands of developers who are shipping faster with AI agent teams.
+- button "Start Building Now"
+- contentinfo:
+  - text: SaasIt.ai
+  - paragraph: Visual AI team orchestrator for rapid application development.
+  - heading "Product" [level=4]
+  - list:
+    - listitem:
+      - link "Features":
+        - /url: "#features"
+    - listitem:
+      - link "Pricing":
+        - /url: "#pricing"
+    - listitem:
+      - link "Templates":
+        - /url: "#templates"
+    - listitem:
+      - link "Agent Library":
+        - /url: "#agents"
+  - heading "Resources" [level=4]
+  - list:
+    - listitem:
+      - link "Documentation":
+        - /url: "#docs"
+    - listitem:
+      - link "Tutorials":
+        - /url: "#tutorials"
+    - listitem:
+      - link "Community":
+        - /url: "#community"
+    - listitem:
+      - link "Support":
+        - /url: "#support"
+  - heading "Company" [level=4]
+  - list:
+    - listitem:
+      - link "About":
+        - /url: "#about"
+    - listitem:
+      - link "Careers":
+        - /url: "#careers"
+    - listitem:
+      - link "Privacy":
+        - /url: "#privacy"
+    - listitem:
+      - link "Terms":
+        - /url: "#terms"
+  - paragraph: © 2024 SaasIt.ai. All rights reserved.
+```
