@@ -9,6 +9,8 @@ import 'reactflow/dist/style.css';
 
 import useWorkflowStore from '../../lib/stores/workflowStore';
 import AgentNode from './AgentNode';
+import { Button } from '../ui/button';
+import { Layers } from 'lucide-react';
 
 // Canvas component without ReactFlowProvider (since it will be wrapped)
 const WorkflowCanvasInner = ({ isExecuting }) => {
@@ -27,6 +29,8 @@ const WorkflowCanvasInner = ({ isExecuting }) => {
     onEdgesChange,
     addNode,
     addEdge: addEdgeToStore,
+    applyAutoLayout,
+    currentLayoutType,
   } = useWorkflowStore();
 
   const onConnect = useCallback(
@@ -117,6 +121,20 @@ const WorkflowCanvasInner = ({ isExecuting }) => {
           hideAttribution: true,
         }}
       >
+        {/* Auto-layout button */}
+        <div className="absolute top-4 left-4 z-10">
+          <Button
+            onClick={() => applyAutoLayout()}
+            variant="secondary"
+            size="sm"
+            className="flex items-center gap-2"
+            disabled={nodes.length === 0}
+          >
+            <Layers size={16} />
+            Auto Layout
+          </Button>
+        </div>
+        
         <Background 
           variant="dots" 
           gap={20} 

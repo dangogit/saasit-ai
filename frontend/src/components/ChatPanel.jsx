@@ -1,12 +1,26 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User } from 'lucide-react';
+import { Send, Bot, User, AlertCircle } from 'lucide-react';
 import { chatMessages } from '../data/mock';
+import apiClient from '../services/api';
+import useWorkflowStore from '../lib/stores/workflowStore';
 
 const ChatPanel = ({ onAddAgent }) => {
   const [messages, setMessages] = useState(chatMessages);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [error, setError] = useState(null);
+  const [useStreaming, setUseStreaming] = useState(true);
   const messagesEndRef = useRef(null);
+  const wsClient = useRef(null);
+  
+  const { 
+    updateProjectContext, 
+    setConversationPhase,
+    generateWorkflowFromAI,
+    addConversationMessage,
+    conversationPhase
+  } = useWorkflowStore();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -16,12 +30,84 @@ const ChatPanel = ({ onAddAgent }) => {
     scrollToBottom();
   }, [messages]);
 
+  // Initialize WebSocket connection for streaming
+  useEffect(() => {
+    if (useStreaming) {
+      initializeWebSocket();
+    }
+    
+    return () => {
+      if (wsClient.current) {
+        wsClient.current.close();
+      }
+    };
+  }, [useStreaming]);
+
+  const initializeWebSocket = async () => {
+    try {
+      wsClient.current = apiClient.connectWebSocket();
+      
+      wsClient.current.onMessage((data) => {
+        handleWebSocketMessage(data);
+      });
+      
+      wsClient.current.onError((error) => {
+        console.error('WebSocket error:', error);
+        setError('Connection error. Falling back to REST API.');
+        setUseStreaming(false);
+      });
+      
+      wsClient.current.onClose(() => {
+        setIsConnected(false);
+      });
+      
+      await wsClient.current.connect();
+      setIsConnected(true);
+    } catch (error) {
+      console.error('Failed to connect WebSocket:', error);
+      setUseStreaming(false);
+    }
+  };
+
+  const handleWebSocketMessage = (data) => {
+    if (data.type === 'delta') {
+      // Update the last AI message with streaming content
+      setMessages(prev => {
+        const newMessages = [...prev];
+        const lastMessage = newMessages[newMessages.length - 1];
+        if (lastMessage && lastMessage.type === 'ai' && lastMessage.isStreaming) {
+          lastMessage.content += data.content;
+        }
+        return newMessages;
+      });
+    } else if (data.type === 'complete') {
+      // Finalize the streaming message
+      setIsTyping(false);
+      setMessages(prev => {
+        const newMessages = [...prev];
+        const lastMessage = newMessages[newMessages.length - 1];
+        if (lastMessage && lastMessage.isStreaming) {
+          lastMessage.isStreaming = false;
+          
+          // Handle workflow generation
+          if (data.response && data.response.workflow) {
+            handleWorkflowResponse(data.response);
+          }
+        }
+        return newMessages;
+      });
+    } else if (data.type === 'error') {
+      setError(data.error);
+      setIsTyping(false);
+    }
+  };
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!inputValue.trim()) return;
 
     const newMessage = {
-      id: messages.length + 1,
+      id: Date.now(),
       type: 'user',
       content: inputValue.trim(),
       timestamp: new Date()
@@ -30,45 +116,99 @@ const ChatPanel = ({ onAddAgent }) => {
     setMessages(prev => [...prev, newMessage]);
     setInputValue('');
     setIsTyping(true);
+    setError(null);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const aiResponse = {
-        id: messages.length + 2,
+    // Prepare conversation history
+    const conversationHistory = messages
+      .filter(msg => !msg.isStreaming)
+      .map(msg => ({
+        role: msg.type === 'user' ? 'user' : 'assistant',
+        content: msg.content
+      }));
+    
+    conversationHistory.push({
+      role: 'user',
+      content: newMessage.content
+    });
+
+    try {
+      if (useStreaming && wsClient.current && isConnected) {
+        // Use WebSocket for streaming
+        const aiMessage = {
+          id: Date.now() + 1,
+          type: 'ai',
+          content: '',
+          timestamp: new Date(),
+          isStreaming: true
+        };
+        setMessages(prev => [...prev, aiMessage]);
+        
+        wsClient.current.send({
+          messages: conversationHistory
+        });
+      } else {
+        // Use REST API
+        const response = await apiClient.sendChatMessage(conversationHistory);
+        
+        if (response.response) {
+          const aiResponse = {
+            id: Date.now() + 1,
+            type: 'ai',
+            content: response.response.message || 'I understand. Let me help you with that.',
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, aiResponse]);
+          
+          // Handle workflow generation
+          if (response.response.workflow) {
+            handleWorkflowResponse(response.response);
+          }
+        }
+        setIsTyping(false);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setError(error.message || 'Failed to send message. Please try again.');
+      setIsTyping(false);
+    }
+  };
+
+  const handleWorkflowResponse = async (response) => {
+    if (response.phase) {
+      setConversationPhase(response.phase);
+    }
+    
+    if (response.workflow && response.workflow.agents) {
+      // Generate workflow on the canvas
+      await generateWorkflowFromAI(response);
+      
+      // Show success message
+      const successMessage = {
+        id: Date.now() + 3,
         type: 'ai',
-        content: getAIResponse(newMessage.content),
+        content: '✨ I\'ve created your workflow on the canvas! The agents are arranged based on their dependencies and collaboration patterns.',
         timestamp: new Date()
       };
-      setMessages(prev => [...prev, aiResponse]);
-      setIsTyping(false);
-    }, 1500);
+      setTimeout(() => {
+        setMessages(prev => [...prev, successMessage]);
+      }, 1000);
+    }
+    
+    if (response.questions && response.questions.length > 0) {
+      // Add clarifying questions as a follow-up message
+      const questionsMessage = {
+        id: Date.now() + 2,
+        type: 'ai',
+        content: 'To better understand your needs, could you help me with:\n\n' + 
+                 response.questions.map((q, i) => `${i + 1}. ${q}`).join('\n'),
+        timestamp: new Date()
+      };
+      setTimeout(() => {
+        setMessages(prev => [...prev, questionsMessage]);
+      }, 500);
+    }
   };
 
-  const getAIResponse = (userMessage) => {
-    const message = userMessage.toLowerCase();
-    
-    if (message.includes('todo') || message.includes('task') || message.includes('project management')) {
-      return 'For a task management app, I recommend:\n\n• **Rapid Prototyper** - Build core task features\n• **Frontend Developer** - Create collaborative UI\n• **Backend Architect** - Design real-time sync\n• **UI Designer** - Optimize user experience\n\nWould you like me to add these agents to your canvas?';
-    }
-    
-    if (message.includes('ecommerce') || message.includes('shop') || message.includes('store')) {
-      return 'For an ecommerce platform, you\'ll need:\n\n• **Backend Architect** - Payment & inventory systems\n• **Frontend Developer** - Shopping cart UI\n• **UI Designer** - Product pages\n• **DevOps Automator** - Scaling infrastructure\n• **Analytics Reporter** - Track sales metrics\n\nShall I add these specialists to your team?';
-    }
-    
-    if (message.includes('mobile') || message.includes('app')) {
-      return 'Perfect! For a mobile app, I suggest:\n\n• **Mobile App Builder** - Native development\n• **UI Designer** - Mobile-first design\n• **Backend Architect** - API development\n• **Performance Benchmarker** - Speed optimization\n\nReady to start building your mobile team?';
-    }
-    
-    if (message.includes('ai') || message.includes('ml') || message.includes('intelligent')) {
-      return 'Great choice! For AI-powered applications:\n\n• **AI Engineer** - ML model integration\n• **Backend Architect** - Data processing pipeline\n• **Frontend Developer** - Smart UI components\n• **Test Writer & Fixer** - Model validation\n\nWant me to add these AI specialists?';
-    }
-
-    if (message.includes('yes') || message.includes('add') || message.includes('sure')) {
-      return 'Awesome! I\'ve suggested some agents for you. You can drag them from the library on the right, or I can add them directly to your canvas. \n\nWhat specific features are most important for your app?';
-    }
-    
-    return 'I can help you build the perfect AI development team! Tell me more about:\n\n• What type of app you\'re building\n• Key features you need\n• Your target platform (web, mobile, etc.)\n• Any specific technologies you prefer\n\nI\'ll recommend the best agents for your project!';
-  };
 
   const formatMessage = (content) => {
     // Convert markdown-like formatting to JSX
@@ -93,6 +233,28 @@ const ChatPanel = ({ onAddAgent }) => {
 
   return (
     <div className="flex-1 flex flex-col h-full">
+      {/* Error Banner */}
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-sm flex items-center gap-2">
+          <AlertCircle size={16} />
+          <span>{error}</span>
+          <button 
+            onClick={() => setError(null)}
+            className="ml-auto text-red-600 hover:text-red-800"
+          >
+            ×
+          </button>
+        </div>
+      )}
+      
+      {/* Connection Status */}
+      {useStreaming && (
+        <div className="px-4 py-2 text-xs text-gray-500 flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-gray-400'}`} />
+          {isConnected ? 'Connected' : 'Connecting...'}
+        </div>
+      )}
+      
       {/* Messages */}
       <div className="flex-1 overflow-auto p-4 space-y-4">
         {messages.map((message) => (
@@ -115,6 +277,9 @@ const ChatPanel = ({ onAddAgent }) => {
             >
               <div className="leading-relaxed">
                 {message.type === 'ai' ? formatMessage(message.content) : message.content}
+                {message.isStreaming && (
+                  <span className="inline-block w-2 h-4 ml-1 bg-blue-600 animate-pulse" />
+                )}
               </div>
               <div className={`text-xs mt-2 opacity-70 ${
                 message.type === 'user' ? 'text-blue-100' : 'text-gray-500'
