@@ -1,27 +1,20 @@
-import React, { useState } from "react";
+import React from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import "./App.css";
 import LandingPage from "./components/LandingPage";
 import WorkflowDesigner from "./components/WorkflowDesigner";
 
 function App() {
-  const [currentView, setCurrentView] = useState('landing'); // 'landing' or 'designer'
-
-  const handleGetStarted = () => {
-    setCurrentView('designer');
-  };
-
-  const handleBackToLanding = () => {
-    setCurrentView('landing');
-  };
-
   return (
-    <div className="App">
-      {currentView === 'landing' ? (
-        <LandingPage onGetStarted={handleGetStarted} />
-      ) : (
-        <WorkflowDesigner onBackToLanding={handleBackToLanding} />
-      )}
-    </div>
+    <Router>
+      <div className="App">
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/app" element={<WorkflowDesigner />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+    </Router>
   );
 }
 
