@@ -5,6 +5,7 @@ import useWorkflowStore from '../../lib/stores/workflowStore';
 
 const AgentNode = memo(({ data, selected, id }) => {
   const { removeNode, updateNode } = useWorkflowStore();
+  const { role, isManager, isLead } = data;
 
   const getStatusIcon = () => {
     switch (data.status) {
@@ -19,16 +20,38 @@ const AgentNode = memo(({ data, selected, id }) => {
     }
   };
 
+  const getRoleIcon = () => {
+    if (isManager) return '👑';
+    if (isLead) return '⭐';
+    return null;
+  };
+  
+  const getRoleTitle = () => {
+    if (isManager) return 'Project Manager';
+    if (isLead) return 'Team Lead';
+    return 'Team Member';
+  };
+
   const getStatusStyles = () => {
+    let baseStyles = '';
+    
+    // Role-based styling
+    if (isManager) {
+      baseStyles = 'ring-2 ring-orange-400 bg-gradient-to-br from-orange-50 to-yellow-50';
+    } else if (isLead) {
+      baseStyles = 'ring-2 ring-blue-400 bg-gradient-to-br from-blue-50 to-indigo-50';
+    }
+    
+    // Status-based overlay
     switch (data.status) {
       case 'running':
-        return 'ring-2 ring-blue-200 bg-blue-50';
+        return baseStyles + ' shadow-lg';
       case 'completed':
-        return 'ring-2 ring-green-200 bg-green-50';
+        return baseStyles + ' ring-green-400 bg-gradient-to-br from-green-50 to-emerald-50';
       case 'failed':
-        return 'ring-2 ring-red-200 bg-red-50';
+        return baseStyles + ' ring-red-400 bg-gradient-to-br from-red-50 to-pink-50';
       default:
-        return selected ? 'ring-2 ring-orange-400' : '';
+        return baseStyles || (selected ? 'ring-2 ring-orange-400' : '');
     }
   };
 
@@ -54,34 +77,59 @@ const AgentNode = memo(({ data, selected, id }) => {
       {/* Node Content */}
       <div 
         className={`
-          voice-card ${data.color} 
+          voice-card ${data.color} group
           min-w-[260px] max-w-[300px]
           transition-all duration-200
           cursor-move
+          relative
+          hover:shadow-xl hover:scale-[1.02]
           ${getStatusStyles()}
         `}
       >
+        {/* Role Badge */}
+        {getRoleIcon() && (
+          <div 
+            className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs z-20"
+            style={{
+              background: isManager ? '#f59e0b' : '#3b82f6',
+              color: 'white',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+            }}
+          >
+            {getRoleIcon()}
+          </div>
+        )}
+        
         {/* Remove Button */}
         <button
           onClick={handleRemove}
-          className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors z-10 opacity-0 hover:opacity-100 group-hover:opacity-100"
+          className="absolute -top-2 -left-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-all duration-200 z-20 opacity-0 group-hover:opacity-100 shadow-lg hover:shadow-xl hover:scale-110"
         >
-          <X size={12} />
+          <X size={14} />
         </button>
 
         {/* Drag Handle - Header Area */}
         <div className="drag-handle flex items-start gap-3 mb-3 cursor-move">
           {/* Agent Icon */}
-          <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center text-xl flex-shrink-0">
+          <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-xl flex-shrink-0 ${
+            isManager ? 'bg-gradient-to-br from-orange-100 to-yellow-100 border-2 border-orange-200' :
+            isLead ? 'bg-gradient-to-br from-blue-100 to-indigo-100 border-2 border-blue-200' :
+            'bg-white border border-gray-200'
+          }`}>
             {data.icon}
           </div>
           
           {/* Agent Info */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <h3 className="font-medium text-sm truncate">{data.name}</h3>
+              <h3 className={`font-medium truncate ${
+                isManager ? 'text-base font-semibold' : 'text-sm'
+              }`}>{data.name}</h3>
               {getStatusIcon()}
             </div>
+            <p className="text-xs text-gray-600 mb-1">
+              {getRoleTitle()}
+            </p>
             <p className="text-xs font-mono uppercase tracking-wider opacity-70">
               {data.category}
             </p>
@@ -120,28 +168,32 @@ const AgentNode = memo(({ data, selected, id }) => {
           </div>
         </div>
 
-        {/* Estimated Time */}
-        <div className="flex items-center gap-2 text-xs opacity-70 mb-2">
-          <Clock size={12} />
-          <span className="font-mono">{data.estimatedTime}</span>
-        </div>
 
         {/* Status Message */}
         {data.status === 'running' && (
-          <div className="mt-2 p-2 bg-blue-100 rounded text-xs text-blue-700 animate-pulse">
-            🔄 Working on your project...
+          <div className="mt-3 p-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg text-xs text-blue-700 animate-pulse border border-blue-200">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+              <span className="font-medium">Working on your project...</span>
+            </div>
           </div>
         )}
 
         {data.status === 'completed' && (
-          <div className="mt-2 p-2 bg-green-100 rounded text-xs text-green-700">
-            ✅ Task completed successfully
+          <div className="mt-3 p-2.5 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg text-xs text-green-700 border border-green-200">
+            <div className="flex items-center gap-2">
+              <CheckCircle size={14} className="text-green-500" />
+              <span className="font-medium">Task completed successfully</span>
+            </div>
           </div>
         )}
 
         {data.status === 'failed' && (
-          <div className="mt-2 p-2 bg-red-100 rounded text-xs text-red-700">
-            ❌ Task failed - check logs
+          <div className="mt-3 p-2.5 bg-gradient-to-r from-red-50 to-pink-50 rounded-lg text-xs text-red-700 border border-red-200">
+            <div className="flex items-center gap-2">
+              <AlertCircle size={14} className="text-red-500" />
+              <span className="font-medium">Task failed - check logs</span>
+            </div>
           </div>
         )}
       </div>

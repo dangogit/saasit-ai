@@ -181,6 +181,52 @@ export const agents = [
     color: 'accent-blue',
     capabilities: ['Performance testing', 'Speed optimization', 'Load testing'],
     estimatedTime: '2-3 hours'
+  },
+
+  // Management & Leadership Agents
+  {
+    id: 'project-shipper',
+    name: 'Project Shipper',
+    category: 'Management',
+    description: 'End-to-end project delivery specialist ensuring timely launches',
+    icon: '🚢',
+    color: 'accent-orange',
+    capabilities: ['Project coordination', 'Timeline management', 'Launch orchestration'],
+    estimatedTime: 'Full project',
+    isManager: true
+  },
+  {
+    id: 'studio-producer',
+    name: 'Studio Producer',
+    category: 'Management', 
+    description: 'Cross-functional team coordinator optimizing workflows',
+    icon: '🎬',
+    color: 'accent-purple',
+    capabilities: ['Team coordination', 'Resource allocation', 'Workflow optimization'],
+    estimatedTime: 'Full project',
+    isManager: true
+  },
+  {
+    id: 'technical-lead',
+    name: 'Technical Lead',
+    category: 'Management',
+    description: 'Senior engineering oversight ensuring technical excellence',
+    icon: '👨‍💻',
+    color: 'accent-blue',
+    capabilities: ['Technical oversight', 'Architecture decisions', 'Code quality'],
+    estimatedTime: 'Full project',
+    isManager: true
+  },
+  {
+    id: 'design-lead',
+    name: 'Design Lead',
+    category: 'Management',
+    description: 'Design team coordination ensuring cohesive user experience',
+    icon: '🎨',
+    color: 'accent-green',
+    capabilities: ['Design coordination', 'UX strategy', 'Design system'],
+    estimatedTime: 'Full project', 
+    isManager: true
   }
 ];
 
@@ -191,7 +237,8 @@ export const agentCategories = [
   { id: 'marketing', name: 'Marketing', count: agents.filter(a => a.category === 'Marketing').length },
   { id: 'product', name: 'Product', count: agents.filter(a => a.category === 'Product').length },
   { id: 'operations', name: 'Operations', count: agents.filter(a => a.category === 'Operations').length },
-  { id: 'testing', name: 'Testing', count: agents.filter(a => a.category === 'Testing').length }
+  { id: 'testing', name: 'Testing', count: agents.filter(a => a.category === 'Testing').length },
+  { id: 'management', name: 'Management', count: agents.filter(a => a.category === 'Management').length }
 ];
 
 export const pricingTiers = [
@@ -305,59 +352,96 @@ export const workflowTemplates = [
     id: 'saas-mvp',
     name: 'SaaS MVP',
     description: 'Complete SaaS application with authentication, payments, and core features',
-    agents: ['rapid-prototyper', 'frontend-developer', 'backend-architect', 'ui-designer', 'test-writer-fixer'],
-    estimatedTime: '12-24 hours',
     category: 'Web App',
-    color: 'accent-blue'
+    color: 'accent-blue',
+    hierarchy: {
+      manager: 'project-shipper',
+      techLead: 'backend-architect',
+      team: ['rapid-prototyper', 'frontend-developer', 'ui-designer', 'test-writer-fixer', 'devops-automator']
+    },
+    connections: [
+      { from: 'project-shipper', to: 'backend-architect', type: 'manages' },
+      { from: 'backend-architect', to: 'rapid-prototyper', type: 'coordinates' },
+      { from: 'backend-architect', to: 'frontend-developer', type: 'coordinates' },
+      { from: 'ui-designer', to: 'frontend-developer', type: 'collaborates' },
+      { from: 'test-writer-fixer', to: 'backend-architect', type: 'reports' },
+      { from: 'devops-automator', to: 'backend-architect', type: 'reports' }
+    ]
   },
   {
     id: 'mobile-app',
-    name: 'Mobile App',
+    name: 'Mobile App', 
     description: 'Native mobile application with modern UI and API integration',
-    agents: ['mobile-app-builder', 'ui-designer', 'backend-architect', 'performance-benchmarker'],
-    estimatedTime: '16-32 hours',
     category: 'Mobile',
-    color: 'accent-green'
+    color: 'accent-green',
+    hierarchy: {
+      manager: 'studio-producer',
+      techLead: 'mobile-app-builder',
+      team: ['ui-designer', 'backend-architect', 'performance-benchmarker', 'test-writer-fixer']
+    },
+    connections: [
+      { from: 'studio-producer', to: 'mobile-app-builder', type: 'manages' },
+      { from: 'mobile-app-builder', to: 'ui-designer', type: 'coordinates' },
+      { from: 'mobile-app-builder', to: 'backend-architect', type: 'coordinates' },
+      { from: 'performance-benchmarker', to: 'mobile-app-builder', type: 'reports' },
+      { from: 'test-writer-fixer', to: 'mobile-app-builder', type: 'reports' }
+    ]
   },
   {
     id: 'ai-powered-tool',
     name: 'AI-Powered Tool',
     description: 'Intelligent application with AI/ML features and smart automation',
-    agents: ['ai-engineer', 'frontend-developer', 'backend-architect', 'ui-designer'],
-    estimatedTime: '20-40 hours',
     category: 'AI/ML',
-    color: 'accent-purple'
+    color: 'accent-purple',
+    hierarchy: {
+      manager: 'technical-lead',
+      techLead: 'ai-engineer',
+      team: ['frontend-developer', 'backend-architect', 'ui-designer', 'analytics-reporter', 'test-writer-fixer']
+    },
+    connections: [
+      { from: 'technical-lead', to: 'ai-engineer', type: 'manages' },
+      { from: 'ai-engineer', to: 'backend-architect', type: 'coordinates' },
+      { from: 'ai-engineer', to: 'frontend-developer', type: 'coordinates' },
+      { from: 'ui-designer', to: 'frontend-developer', type: 'collaborates' },
+      { from: 'analytics-reporter', to: 'ai-engineer', type: 'reports' },
+      { from: 'test-writer-fixer', to: 'ai-engineer', type: 'reports' }
+    ]
   },
   {
     id: 'marketing-website',
     name: 'Marketing Website',
     description: 'Conversion-optimized marketing site with SEO and analytics',
-    agents: ['frontend-developer', 'ui-designer', 'content-creator', 'seo-optimizer'],
-    estimatedTime: '8-16 hours',
     category: 'Marketing',
-    color: 'accent-orange'
+    color: 'accent-orange',
+    hierarchy: {
+      manager: 'growth-hacker',
+      designLead: 'design-lead',
+      team: ['frontend-developer', 'ui-designer', 'content-creator', 'seo-optimizer', 'analytics-reporter']
+    },
+    connections: [
+      { from: 'growth-hacker', to: 'design-lead', type: 'manages' },
+      { from: 'design-lead', to: 'ui-designer', type: 'coordinates' },
+      { from: 'design-lead', to: 'frontend-developer', type: 'coordinates' },
+      { from: 'content-creator', to: 'growth-hacker', type: 'reports' },
+      { from: 'seo-optimizer', to: 'growth-hacker', type: 'reports' },
+      { from: 'analytics-reporter', to: 'growth-hacker', type: 'reports' }
+    ]
   }
 ];
+
+// Add agents property for backward compatibility
+workflowTemplates.forEach(template => {
+  const { manager, techLead, designLead, team } = template.hierarchy;
+  template.agents = [manager, techLead, designLead, ...team].filter(Boolean);
+});
 
 export const chatMessages = [
   {
     id: 1,
     type: 'ai',
-    content: 'Hi! I\'m your AI workflow designer. Describe the app you want to build and I\'ll suggest the perfect team of agents.',
+    content: '🤖 Ready to orchestrate your perfect AI agent team! Tell me what you want to build and I\'ll recommend the ideal specialists for your project.',
     timestamp: new Date()
   },
-  {
-    id: 2,
-    type: 'user',
-    content: 'I want to build a task management app with team collaboration features',
-    timestamp: new Date()
-  },
-  {
-    id: 3,
-    type: 'ai',
-    content: 'Great idea! For a task management app with team collaboration, I recommend this agent team:\n\n• **Rapid Prototyper** - Build core task management features\n• **Frontend Developer** - Create collaborative UI\n• **Backend Architect** - Design real-time sync system\n• **UI Designer** - Optimize user experience\n• **Test Writer & Fixer** - Ensure reliability\n\nShould I add these agents to your canvas?',
-    timestamp: new Date()
-  }
 ];
 
 export const executionSteps = [
