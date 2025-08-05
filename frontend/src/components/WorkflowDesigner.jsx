@@ -10,7 +10,10 @@ import {
   X,
   Clock,
   CheckCircle,
-  Loader
+  Loader,
+  Lock,
+  Star,
+  Shield
 } from 'lucide-react';
 import WorkflowCanvas from './canvas/WorkflowCanvas';
 import AgentLibrary from './AgentLibrary';
@@ -21,6 +24,8 @@ import ExportLocationModal from './ExportLocationModal';
 import useWorkflowStore from '../lib/stores/workflowStore';
 import { agents, workflowTemplates, executionSteps } from '../data/mock';
 import { exportWorkflowWithFiles, isFileSystemAccessSupported } from '../lib/exportUtils';
+import useAuth from '../hooks/useAuth';
+import AuthModal from './ui/auth-modal';
 
 const WorkflowDesigner = () => {
   const navigate = useNavigate();
@@ -33,6 +38,9 @@ const WorkflowDesigner = () => {
   const [showComingSoonModal, setShowComingSoonModal] = useState(false);
   const [showExportLocationModal, setShowExportLocationModal] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [showAuthPrompt, setShowAuthPrompt] = useState(null); // For feature-specific auth prompts
+  
+  const { isAuthenticated, openLoginModal, user } = useAuth();
 
   const {
     nodes,
@@ -186,6 +194,11 @@ const WorkflowDesigner = () => {
   };
   
   const handleLoadTemplate = useCallback((template) => {
+    if (!isAuthenticated) {
+      setShowAuthPrompt('template');
+      return;
+    }
+    
     const { nodes: templateNodes, edges: templateEdges } = createHierarchicalLayout(template);
     
     setCurrentWorkflow({
@@ -195,9 +208,14 @@ const WorkflowDesigner = () => {
       edges: templateEdges
     });
     setWorkflowName(template.name);
-  }, [setCurrentWorkflow]);
+  }, [setCurrentWorkflow, isAuthenticated]);
 
   const handleExecuteWorkflow = () => {
+    if (!isAuthenticated) {
+      setShowAuthPrompt('execute');
+      return;
+    }
+    
     if (nodes.length === 0) {
       alert('Please add at least one agent to your workflow');
       return;
@@ -208,6 +226,11 @@ const WorkflowDesigner = () => {
   };
 
   const handleSaveWorkflow = () => {
+    if (!isAuthenticated) {
+      setShowAuthPrompt('save');
+      return;
+    }
+    
     const workflow = {
       name: workflowName,
       nodes,
@@ -229,6 +252,11 @@ const WorkflowDesigner = () => {
   };
 
   const handleExportWorkflow = () => {
+    if (!isAuthenticated) {
+      setShowAuthPrompt('export');
+      return;
+    }
+    
     if (nodes.length === 0) {
       alert('Please add at least one agent to your workflow before exporting');
       return;
@@ -279,29 +307,37 @@ const WorkflowDesigner = () => {
             SaasIt.ai
           </button>
           <div className="w-px h-6" style={{ background: 'var(--border-light)' }}></div>
-          <input
-            type="text"
-            value={workflowName}
-            onChange={(e) => setWorkflowName(e.target.value)}
-            className="font-medium bg-transparent border-none outline-none text-lg max-w-xs"
-            style={{ color: 'var(--text-primary)' }}
-          />
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={workflowName}
+              onChange={(e) => isAuthenticated ? setWorkflowName(e.target.value) : setShowAuthPrompt('edit')}
+              onFocus={() => !isAuthenticated && setShowAuthPrompt('edit')}
+              className={`font-medium bg-transparent border-none outline-none text-lg max-w-xs ${!isAuthenticated ? 'cursor-pointer' : 'cursor-text'}`}
+              style={{ color: 'var(--text-primary)' }}
+              readOnly={!isAuthenticated}
+              title={!isAuthenticated ? 'Sign in to edit workflow name' : ''}
+            />
+            {!isAuthenticated && <Lock size={14} className="opacity-50" />}
+          </div>
         </div>
         
         <div className="flex items-center gap-3">
           <button 
             onClick={handleSaveWorkflow}
-            className="btn-secondary"
+            className={`btn-secondary ${!isAuthenticated ? 'relative' : ''}`}
+            title={!isAuthenticated ? 'Sign in to save workflows' : ''}
           >
             <Save size={16} className="mr-2" />
             Save
+            {!isAuthenticated && <Lock size={12} className="ml-1 opacity-60" />}
           </button>
           
           <button 
             onClick={handleExportWorkflow}
             disabled={isExporting || nodes.length === 0}
-            className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
-            title={isFileSystemAccessSupported() ? 'Export with agent files' : 'Export config only (use Chrome/Edge for full export)'}
+            className={`btn-secondary disabled:opacity-50 disabled:cursor-not-allowed ${!isAuthenticated ? 'relative' : ''}`}
+            title={!isAuthenticated ? 'Sign in to export workflows' : (isFileSystemAccessSupported() ? 'Export with agent files' : 'Export config only (use Chrome/Edge for full export)')}
           >
             {isExporting ? (
               <Loader size={16} className="mr-2 animate-spin" />
@@ -309,12 +345,14 @@ const WorkflowDesigner = () => {
               <Download size={16} className="mr-2" />
             )}
             {isExporting ? 'Exporting...' : 'Export'}
+            {!isAuthenticated && <Lock size={12} className="ml-1 opacity-60" />}
           </button>
           
           <button 
             onClick={handleExecuteWorkflow}
-            className="btn-primary"
+            className={`btn-primary ${!isAuthenticated ? 'relative' : ''}`}
             disabled={isExecuting || nodes.length === 0}
+            title={!isAuthenticated ? 'Sign in to run workflows in the cloud' : ''}
           >
             {isExecuting ? (
               <Loader size={16} className="mr-2 animate-spin" />
@@ -322,6 +360,7 @@ const WorkflowDesigner = () => {
               <Play size={16} className="mr-2" />
             )}
             {isExecuting ? 'Running...' : 'Run in Cloud'}
+            {!isAuthenticated && <Lock size={12} className="ml-1 opacity-60" />}
           </button>
           
           {/* Library Button - separate from Run button */}
@@ -347,7 +386,10 @@ const WorkflowDesigner = () => {
           }}>
             <div className="h-12 border-b flex items-center justify-between px-4" 
                  style={{ borderColor: 'var(--border-light)', background: 'var(--bg-card)' }}>
-              <h3 className="font-mono font-medium text-sm uppercase tracking-wider">AI Assistant</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-mono font-medium text-sm uppercase tracking-wider">AI Assistant</h3>
+                {!isAuthenticated && <Lock size={12} className="opacity-60" />}
+              </div>
               <button 
                 onClick={() => setShowChat(false)}
                 className="p-1 hover:bg-gray-100 rounded"
@@ -355,7 +397,24 @@ const WorkflowDesigner = () => {
                 <X size={16} />
               </button>
             </div>
-            <ChatPanel />
+            {isAuthenticated ? (
+              <ChatPanel />
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mb-4">
+                  <MessageSquare size={24} className="text-blue-600" />
+                </div>
+                <h3 className="font-semibold mb-2">AI Assistant</h3>
+                <p className="text-sm text-gray-600 mb-4">Get personalized workflow recommendations and build guidance from our AI assistant.</p>
+                <button 
+                  onClick={() => setShowAuthPrompt('chat')}
+                  className="btn-primary text-sm px-4 py-2"
+                >
+                  <Lock size={14} className="mr-2" />
+                  Sign In to Chat
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -364,14 +423,20 @@ const WorkflowDesigner = () => {
           {!showChat && (
             <button
               onClick={() => setShowChat(true)}
-              className="absolute top-4 left-4 z-10 btn-secondary fade-in-up"
+              className={`absolute top-4 left-4 z-10 btn-secondary fade-in-up ${!isAuthenticated ? 'relative' : ''}`}
+              title={!isAuthenticated ? 'Sign in to use AI assistant' : ''}
             >
               <MessageSquare size={16} className="mr-2" />
               Chat
+              {!isAuthenticated && <Lock size={12} className="ml-1 opacity-60" />}
             </button>
           )}
           
-          <WorkflowCanvas isExecuting={isExecuting} />
+          <WorkflowCanvas 
+            isExecuting={isExecuting} 
+            isAuthenticated={isAuthenticated}
+            onAuthRequired={(feature) => setShowAuthPrompt(feature)}
+          />
           
           {nodes.length === 0 && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -383,23 +448,55 @@ const WorkflowDesigner = () => {
                 </div>
                 <h3 className="heading-1 mb-8 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Build Your AI Team</h3>
                 
+                {!isAuthenticated && (
+                  <div className="bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-2xl p-6 mb-8 pointer-events-auto">
+                    <div className="flex items-center justify-center gap-2 mb-4">
+                      <Shield size={20} className="text-orange-600" />
+                      <span className="font-semibold text-orange-800">Premium Features</span>
+                    </div>
+                    <p className="text-sm text-orange-700 mb-4">
+                      Sign up to unlock workflow creation, AI chat, cloud execution, and more premium features.
+                    </p>
+                    <button 
+                      onClick={() => openLoginModal()}
+                      className="btn-primary text-sm px-6 py-2 bg-orange-600 hover:bg-orange-700"
+                    >
+                      <Star size={14} className="mr-2" />
+                      Get Full Access
+                    </button>
+                  </div>
+                )}
+                
                 {/* Interactive Guide */}
                 <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 rounded-3xl p-8 mb-8 border border-blue-200 shadow-xl backdrop-blur-sm">
                   <div className="flex items-center justify-center mb-6">
                     <div className="flex items-center gap-3">
                       <div className="w-4 h-4 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full animate-pulse shadow-lg"></div>
-                      <span className="text-base text-blue-800 font-semibold">Choose your approach</span>
+                      <span className="text-base text-blue-800 font-semibold">
+                        {isAuthenticated ? 'Choose your approach' : 'Explore the platform'}
+                      </span>
                     </div>
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     <button
-                      onClick={() => setShowChat(true)}
-                      className="group bg-white/90 hover:bg-white rounded-2xl p-6 border border-blue-300 hover:border-blue-400 transition-all pointer-events-auto hover:scale-105 hover:shadow-lg"
+                      onClick={() => {
+                        if (isAuthenticated) {
+                          setShowChat(true);
+                        } else {
+                          setShowAuthPrompt('chat');
+                        }
+                      }}
+                      className={`group bg-white/90 hover:bg-white rounded-2xl p-6 border border-blue-300 hover:border-blue-400 transition-all pointer-events-auto hover:scale-105 hover:shadow-lg ${!isAuthenticated ? 'relative' : ''}`}
                     >
                       <div className="text-3xl mb-3 group-hover:scale-110 transition-transform">💬</div>
-                      <h4 className="font-bold text-base mb-2 text-gray-800">Describe Your App</h4>
-                      <p className="text-sm text-gray-600">Tell me what you want to build</p>
+                      <h4 className="font-bold text-base mb-2 text-gray-800 flex items-center gap-2">
+                        Describe Your App
+                        {!isAuthenticated && <Lock size={14} className="opacity-60" />}
+                      </h4>
+                      <p className="text-sm text-gray-600">
+                        {isAuthenticated ? 'Tell me what you want to build' : 'Sign in to chat with AI'}
+                      </p>
                     </button>
                     
                     <button
@@ -407,8 +504,8 @@ const WorkflowDesigner = () => {
                       className="group bg-white/90 hover:bg-white rounded-2xl p-6 border border-purple-300 hover:border-purple-400 transition-all pointer-events-auto hover:scale-105 hover:shadow-lg"
                     >
                       <div className="text-3xl mb-3 group-hover:scale-110 transition-transform">🤖</div>
-                      <h4 className="font-bold text-base mb-2 text-gray-800">Pick Agents</h4>
-                      <p className="text-sm text-gray-600">Browse 40+ specialists</p>
+                      <h4 className="font-bold text-base mb-2 text-gray-800">Browse Agents</h4>
+                      <p className="text-sm text-gray-600">Explore 40+ specialists</p>
                     </button>
                     
                     <button
@@ -419,14 +516,17 @@ const WorkflowDesigner = () => {
                       className="group bg-white/90 hover:bg-white rounded-2xl p-6 border border-green-300 hover:border-green-400 transition-all pointer-events-auto hover:scale-105 hover:shadow-lg"
                     >
                       <div className="text-3xl mb-3 group-hover:scale-110 transition-transform">⚡</div>
-                      <h4 className="font-bold text-base mb-2 text-gray-800">Use Template</h4>
-                      <p className="text-sm text-gray-600">Start with proven teams</p>
+                      <h4 className="font-bold text-base mb-2 text-gray-800">View Templates</h4>
+                      <p className="text-sm text-gray-600">See proven team setups</p>
                     </button>
                   </div>
                   
                   <div className="text-center">
                     <p className="text-sm text-gray-600 font-medium">
-                      💡 Start with any approach - build and iterate as you go
+                      {isAuthenticated 
+                        ? '💡 Start with any approach - build and iterate as you go'
+                        : '💡 Sign up to start building workflows and deploy real applications'
+                      }
                     </p>
                   </div>
                 </div>
@@ -533,6 +633,8 @@ const WorkflowDesigner = () => {
                   activeTab={activeTab}
                   templates={workflowTemplates}
                   onLoadTemplate={handleLoadTemplate}
+                  isAuthenticated={isAuthenticated}
+                  onAuthRequired={(feature) => setShowAuthPrompt(feature)}
                 />
               </div>
             )}
@@ -583,6 +685,89 @@ const WorkflowDesigner = () => {
         onClose={() => setShowExportLocationModal(false)}
         onSelectLocation={handleExportWithLocation}
       />
+      
+      {/* Auth Modal */}
+      <AuthModal />
+      
+      {/* Feature-specific Auth Prompt Modal */}
+      {showAuthPrompt && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{
+            background: 'rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowAuthPrompt(null);
+            }
+          }}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 relative animate-scale-in"
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
+              maxHeight: '90vh',
+              overflowY: 'auto'
+            }}
+          >
+            <button
+              onClick={() => setShowAuthPrompt(null)}
+              className="absolute top-4 right-4 w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-100 transition-colors z-10"
+            >
+              <X size={16} />
+            </button>
+
+            <div className="p-8">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-gradient-to-br from-orange-100 to-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Shield size={28} className="text-orange-600" />
+                </div>
+                <h2 className="text-2xl font-semibold mb-3">
+                  {showAuthPrompt === 'execute' && 'Cloud Execution'}
+                  {showAuthPrompt === 'save' && 'Save Workflows'}
+                  {showAuthPrompt === 'export' && 'Export Workflows'}
+                  {showAuthPrompt === 'chat' && 'AI Assistant'}
+                  {showAuthPrompt === 'template' && 'Use Templates'}
+                  {showAuthPrompt === 'drag' && 'Add Agents'}
+                  {showAuthPrompt === 'edit' && 'Edit Workflow'}
+                </h2>
+                <h3 className="text-xl font-medium bg-gradient-to-r from-orange-500 to-red-500 bg-clip-text text-transparent mb-4">
+                  Premium Feature
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  {showAuthPrompt === 'execute' && 'Run your AI teams in the cloud with real tools and APIs. Get complete applications delivered in days.'}
+                  {showAuthPrompt === 'save' && 'Save your workflows to access them later and build a library of your AI teams.'}
+                  {showAuthPrompt === 'export' && 'Export your workflows with full code generation and deployment-ready files.'}
+                  {showAuthPrompt === 'chat' && 'Get personalized recommendations and build guidance from our AI assistant.'}
+                  {showAuthPrompt === 'template' && 'Use proven workflow templates to jumpstart your AI team development.'}
+                  {showAuthPrompt === 'drag' && 'Add and configure AI agents to build your custom development teams.'}
+                  {showAuthPrompt === 'edit' && 'Create and customize your workflow names and configurations to organize your AI teams.'}
+                </p>
+              </div>
+              
+              <div className="space-y-3">
+                <button 
+                  onClick={() => {
+                    setShowAuthPrompt(null);
+                    openLoginModal();
+                  }}
+                  className="w-full btn-primary flex items-center justify-center gap-2"
+                >
+                  <Star size={16} />
+                  Sign Up for Full Access
+                </button>
+                
+                <p className="text-xs text-center text-gray-500">
+                  Join thousands of developers using SaasIt.ai
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

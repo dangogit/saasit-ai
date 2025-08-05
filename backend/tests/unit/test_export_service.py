@@ -5,7 +5,7 @@ import pytest
 import yaml
 import json
 from app.services.export_service import ExportService
-from app.models.project import Project, ProjectStatus, ProjectWorkflow
+from app.models.project import Project, ProjectStatus, Workflow
 from app.models.user import UserSubscription
 from fastapi import HTTPException
 from datetime import datetime
@@ -24,7 +24,7 @@ class TestExportService:
             user_id="test-user-id",
             status=ProjectStatus.ACTIVE,
             tags=["test", "ai", "workflow"],
-            workflow=ProjectWorkflow(
+            workflow=Workflow(
                 nodes=[
                     {
                         "id": "node-1",
@@ -192,7 +192,7 @@ class TestExportService:
             user_id="test-user",
             status=ProjectStatus.ACTIVE,
             tags=["test", "complex", "edge-cases"],
-            workflow=ProjectWorkflow(
+            workflow=Workflow(
                 nodes=[
                     {
                         "id": "node-1",
@@ -245,7 +245,7 @@ class TestExportService:
             description="No nodes or edges",
             user_id="test-user",
             status=ProjectStatus.DRAFT,
-            workflow=ProjectWorkflow(nodes=[], edges=[], layout="dagre"),
+            workflow=Workflow(nodes=[], edges=[], layout="dagre"),
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
             version=1

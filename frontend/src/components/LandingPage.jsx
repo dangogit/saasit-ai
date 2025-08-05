@@ -3,9 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Sparkles, Users, Zap, Clock, Shield, ArrowRight, X, Mail, User, MessageSquare } from 'lucide-react';
 import { pricingTiers } from '../data/mock';
 import WorkflowIllustration from './WorkflowIllustration';
+import useAuth from '../hooks/useAuth';
+import UserMenu from './ui/user-menu';
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, openLoginModal } = useAuth();
   const [showContactForm, setShowContactForm] = useState(false);
   const [contactForm, setContactForm] = useState({
     name: '',
@@ -14,7 +17,11 @@ const LandingPage = () => {
   });
   
   const handleGetStarted = () => {
-    navigate('/app');
+    if (isAuthenticated) {
+      navigate('/app');
+    } else {
+      openLoginModal();
+    }
   };
   
   const handleContactSales = () => {
@@ -46,10 +53,21 @@ const LandingPage = () => {
           <div className="flex items-center justify-between w-full">
             <div className="logo font-mono">SaasIt.ai</div>
             <div className="nav-actions">
-              <button className="btn-secondary">Sign In</button>
-              <button className="btn-primary" onClick={handleGetStarted}>
-                Get Started
-              </button>
+              {isAuthenticated ? (
+                <UserMenu />
+              ) : (
+                <>
+                  <button 
+                    className="btn-secondary" 
+                    onClick={openLoginModal}
+                  >
+                    Sign In
+                  </button>
+                  <button className="btn-primary" onClick={handleGetStarted}>
+                    Get Started
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request, Header
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from typing import Dict, Optional
 
-from app.models.user import UserCreate, UserLogin, Token, PasswordReset
+from app.models.user import UserCreate, UserLogin, Token, PasswordReset, GoogleCredentialRequest
 from app.services.auth_service import AuthService
 from app.services.google_oauth_service import GoogleOAuthService
 from app.utils.security import verify_token_type
@@ -174,6 +174,44 @@ async def get_current_user_info(
     }
 
 
+@router.get("/verify", response_model=Dict)
+async def verify_token(
+    current_user: TokenData = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Verify JWT token and return user info
+    
+    This endpoint verifies the JWT token and returns current user information.
+    Used by frontend to validate stored tokens on app initialization.
+    
+    Requires authentication via Bearer token in Authorization header
+    """
+    auth_service = AuthService(db)
+    user = await auth_service.get_user_by_id(current_user.user_id)
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    return {
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "company": user.company,
+            "is_verified": user.is_verified,
+            "subscription": user.subscription.model_dump(),
+            "usage": user.usage.model_dump(),
+            "created_at": user.created_at.isoformat()
+        },
+        "valid": True
+    }
+
+
 @router.post("/logout")
 async def logout(
     current_user: TokenData = Depends(get_current_user)
@@ -186,6 +224,45 @@ async def logout(
     # In a real app, you might want to blacklist the token
     # For now, we'll just return success
     return {"message": "Logged out successfully"}
+
+
+@router.post("/google", response_model=Dict)
+async def google_authenticate(
+    request: Request,
+    google_request: GoogleCredentialRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Authenticate user with Google ID token (direct credential flow)
+    
+    This endpoint handles Google OAuth credentials sent directly from the frontend
+    using Google's JavaScript library. It verifies the ID token and authenticates
+    or creates the user.
+    
+    - **credential**: Google ID token from frontend OAuth flow
+    """
+    google_oauth = GoogleOAuthService(db)
+    
+    try:
+        # Verify the Google ID token directly
+        verified_info = await google_oauth.verify_id_token(google_request.credential)
+        google_user = google_oauth._extract_user_data(verified_info)
+        
+        # Create or update user and return tokens
+        result = await google_oauth.create_or_update_user(google_user)
+        
+        return {
+            "user": result["user"],
+            "token": result["access_token"],  # Frontend expects "token" field
+            "refresh_token": result["refresh_token"],
+            "message": "Google authentication successful"
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Google authentication failed: {str(e)}"
+        )
 
 
 @router.get("/google/login")

@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Plus, Filter, Grid, List, Clock, Users, Grip } from 'lucide-react';
+import { Search, Plus, Filter, Grid, List, Clock, Users, Grip, Lock, Shield } from 'lucide-react';
 import { agents, agentCategories } from '../data/mock';
 import useWorkflowStore from '../lib/stores/workflowStore';
 
-const AgentLibrary = ({ activeTab, templates, onLoadTemplate }) => {
+const AgentLibrary = ({ activeTab, templates, onLoadTemplate, isAuthenticated, onAuthRequired }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [viewMode, setViewMode] = useState('list'); // Changed default to list for more compact view
@@ -36,8 +36,21 @@ const AgentLibrary = ({ activeTab, templates, onLoadTemplate }) => {
   };
 
   const handleDragStart = (event, agent) => {
+    if (!isAuthenticated) {
+      event.preventDefault();
+      onAuthRequired('drag');
+      return;
+    }
     event.dataTransfer.setData('application/json', JSON.stringify(agent));
     event.dataTransfer.effectAllowed = 'move';
+  };
+  
+  const handleAgentClick = (agent) => {
+    if (!isAuthenticated) {
+      onAuthRequired('drag');
+      return;
+    }
+    // Could add click-to-add functionality here in the future
   };
 
   const AgentCard = ({ agent, variant = 'grid' }) => {
@@ -47,11 +60,16 @@ const AgentLibrary = ({ activeTab, templates, onLoadTemplate }) => {
       return (
         <div 
           className={`voice-card ${agent.color} flex items-center gap-3 p-3 ${
-            isInCanvas ? 'opacity-60 ring-2 ring-green-300' : 'hover-lift cursor-grab active:cursor-grabbing'
+            isInCanvas 
+              ? 'opacity-60 ring-2 ring-green-300' 
+              : isAuthenticated 
+                ? 'hover-lift cursor-grab active:cursor-grabbing' 
+                : 'hover-lift cursor-pointer opacity-80'
           }`}
-          draggable={!isInCanvas}
+          draggable={!isInCanvas && isAuthenticated}
           onDragStart={(e) => !isInCanvas && handleDragStart(e, agent)}
-          title={agent.description}
+          onClick={() => !isInCanvas && handleAgentClick(agent)}
+          title={isAuthenticated ? agent.description : 'Sign in to add agents to your workflow'}
         >
           <Grip size={14} className="text-gray-400 flex-shrink-0" />
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-lg flex-shrink-0 border border-gray-300/50">
@@ -60,8 +78,11 @@ const AgentLibrary = ({ activeTab, templates, onLoadTemplate }) => {
           
           <div className="flex-1 min-w-0 flex items-center justify-between">
             <div className="flex items-center justify-between w-full">
-              <div>
-                <h3 className="font-medium text-sm truncate">{agent.name}</h3>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-medium text-sm truncate">{agent.name}</h3>
+                  {!isAuthenticated && <Lock size={12} className="opacity-50 flex-shrink-0" />}
+                </div>
                 <span className="text-xs text-gray-500">{agent.category}</span>
               </div>
               {isInCanvas && (
@@ -80,11 +101,14 @@ const AgentLibrary = ({ activeTab, templates, onLoadTemplate }) => {
         className={`voice-card ${agent.color} p-3 ${
           isInCanvas 
             ? 'opacity-60 ring-2 ring-green-300 cursor-default' 
-            : 'hover-lift cursor-grab active:cursor-grabbing'
+            : isAuthenticated
+              ? 'hover-lift cursor-grab active:cursor-grabbing'
+              : 'hover-lift cursor-pointer opacity-80'
         } transition-all duration-200`}
-        draggable={!isInCanvas}
+        draggable={!isInCanvas && isAuthenticated}
         onDragStart={(e) => !isInCanvas && handleDragStart(e, agent)}
-        title={`${agent.name} - ${agent.description}`}
+        onClick={() => !isInCanvas && handleAgentClick(agent)}
+        title={isAuthenticated ? `${agent.name} - ${agent.description}` : 'Sign in to add agents to your workflow'}
       >
         <div className="flex items-start gap-2">
           <Grip size={12} className="text-gray-400 mt-1" />
@@ -95,7 +119,10 @@ const AgentLibrary = ({ activeTab, templates, onLoadTemplate }) => {
                   {agent.icon}
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-medium text-sm leading-tight mb-1">{agent.name}</h3>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-medium text-sm leading-tight">{agent.name}</h3>
+                    {!isAuthenticated && <Lock size={12} className="opacity-50 flex-shrink-0" />}
+                  </div>
                   <p className="text-xs text-gray-500 line-clamp-1">{agent.description}</p>
                 </div>
               </div>
@@ -113,11 +140,15 @@ const AgentLibrary = ({ activeTab, templates, onLoadTemplate }) => {
   };
 
   const TemplateCard = ({ template }) => (
-    <div className={`voice-card ${template.color} hover-lift cursor-pointer`}
-         onClick={() => onLoadTemplate(template)}>
+    <div className={`voice-card ${template.color} hover-lift cursor-pointer ${!isAuthenticated ? 'opacity-80' : ''}`}
+         onClick={() => onLoadTemplate(template)}
+         title={!isAuthenticated ? 'Sign in to use templates' : ''}>
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1">
-          <h3 className="font-medium mb-1">{template.name}</h3>
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="font-medium">{template.name}</h3>
+            {!isAuthenticated && <Lock size={14} className="opacity-50" />}
+          </div>
           <p className="text-xs font-mono uppercase tracking-wider opacity-70 mb-2">
             {template.category}
           </p>
@@ -244,7 +275,7 @@ const AgentLibrary = ({ activeTab, templates, onLoadTemplate }) => {
           </div>
           
           <div className="text-xs text-gray-500">
-            Drag agents to canvas
+            {isAuthenticated ? 'Drag agents to canvas' : 'Browse agents'}
           </div>
         </div>
       </div>
@@ -280,10 +311,23 @@ const AgentLibrary = ({ activeTab, templates, onLoadTemplate }) => {
           </div>
         ) : (
           <>
-            <div className="mb-3 text-xs bg-gradient-to-r from-blue-50 to-purple-50 p-3 rounded-lg border border-blue-100">
+            <div className={`mb-3 text-xs p-3 rounded-lg border ${
+              isAuthenticated 
+                ? 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-100'
+                : 'bg-gradient-to-r from-orange-50 to-red-50 border-orange-100'
+            }`}>
               <div className="flex items-center gap-2">
-                <span className="text-blue-600">💫</span>
-                <span className="font-medium text-gray-700">Drag & drop to add agents</span>
+                {isAuthenticated ? (
+                  <>
+                    <span className="text-blue-600">💫</span>
+                    <span className="font-medium text-gray-700">Drag & drop to add agents</span>
+                  </>
+                ) : (
+                  <>
+                    <Shield size={14} className="text-orange-600" />
+                    <span className="font-medium text-orange-700">Sign in to add agents to workflows</span>
+                  </>
+                )}
               </div>
             </div>
             <div className={viewMode === 'grid' ? 'grid gap-3' : 'space-y-2'}>

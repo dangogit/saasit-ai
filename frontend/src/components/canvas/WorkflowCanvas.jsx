@@ -159,10 +159,14 @@ const WorkflowCanvasInner = ({ isExecuting }) => {
 };
 
 // Main component with ReactFlowProvider wrapper
-const WorkflowCanvas = ({ isExecuting = false }) => {
+const WorkflowCanvas = ({ isExecuting = false, isAuthenticated = false, onAuthRequired }) => {
   return (
     <ReactFlowProvider>
-      <WorkflowCanvasInner isExecuting={isExecuting} />
+      <WorkflowCanvasInner 
+        isExecuting={isExecuting} 
+        isAuthenticated={isAuthenticated}
+        onAuthRequired={onAuthRequired}
+      />
     </ReactFlowProvider>
   );
 };

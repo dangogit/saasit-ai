@@ -19,11 +19,20 @@ class UserStatus(str, Enum):
     DELETED = "deleted"
 
 
+class AuthProvider(str, Enum):
+    EMAIL = "email"
+    GOOGLE = "google"
+
+
 class UserBase(BaseModel):
     email: EmailStr
     first_name: str = Field(..., min_length=1, max_length=50)
     last_name: str = Field(..., min_length=1, max_length=50)
     company: Optional[str] = Field(None, max_length=100)
+    provider: AuthProvider = AuthProvider.EMAIL
+    google_id: Optional[str] = Field(None, max_length=100)
+    profile_picture: Optional[str] = Field(None, max_length=500)
+    verified_email: Optional[bool] = None
     
     @validator('first_name', 'last_name')
     def name_must_not_have_special_chars(cls, v):
@@ -33,16 +42,36 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    password: str = Field(..., min_length=8, max_length=100)
+    password: Optional[str] = Field(None, min_length=8, max_length=100)
     
     @validator('password')
-    def password_strength(cls, v):
-        if not any(char.isdigit() for char in v):
-            raise ValueError('Password must contain at least one digit')
-        if not any(char.isupper() for char in v):
-            raise ValueError('Password must contain at least one uppercase letter')
-        if not any(char.islower() for char in v):
-            raise ValueError('Password must contain at least one lowercase letter')
+    def password_strength(cls, v, values):
+        # Password is required for email auth, optional for Google OAuth
+        provider = values.get('provider', AuthProvider.EMAIL)
+        
+        if provider == AuthProvider.EMAIL and not v:
+            raise ValueError('Password is required for email authentication')
+        
+        if v:  # Only validate if password is provided
+            if not any(char.isdigit() for char in v):
+                raise ValueError('Password must contain at least one digit')
+            if not any(char.isupper() for char in v):
+                raise ValueError('Password must contain at least one uppercase letter')
+            if not any(char.islower() for char in v):
+                raise ValueError('Password must contain at least one lowercase letter')
+        
+        return v
+    
+    @validator('google_id')
+    def validate_google_id(cls, v, values):
+        provider = values.get('provider', AuthProvider.EMAIL)
+        
+        if provider == AuthProvider.GOOGLE and not v:
+            raise ValueError('Google ID is required for Google authentication')
+        
+        if provider == AuthProvider.EMAIL and v:
+            raise ValueError('Google ID should not be provided for email authentication')
+        
         return v
 
 
@@ -50,6 +79,7 @@ class UserUpdate(BaseModel):
     first_name: Optional[str] = Field(None, min_length=1, max_length=50)
     last_name: Optional[str] = Field(None, min_length=1, max_length=50)
     company: Optional[str] = Field(None, max_length=100)
+    profile_picture: Optional[str] = Field(None, max_length=500)
 
 
 class UserSubscription(BaseModel):
@@ -73,7 +103,7 @@ class UserUsage(BaseModel):
 
 class UserInDB(UserBase):
     id: str = Field(alias="_id")
-    hashed_password: str
+    hashed_password: Optional[str] = None  # Optional for Google OAuth users
     is_active: bool = True
     is_verified: bool = False
     is_superuser: bool = False
@@ -132,3 +162,18 @@ class PasswordReset(BaseModel):
 
 class EmailVerification(BaseModel):
     token: str
+
+
+class GoogleOAuthUser(BaseModel):
+    """Model for Google OAuth user data"""
+    google_id: str
+    email: EmailStr
+    first_name: str
+    last_name: str
+    profile_picture: Optional[str] = None
+    verified_email: bool = True
+
+
+class GoogleCredentialRequest(BaseModel):
+    """Model for Google credential authentication request"""
+    credential: str = Field(..., description="Google ID token from frontend OAuth flow")
