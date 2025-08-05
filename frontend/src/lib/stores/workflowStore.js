@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import layoutEngine from '../../utils/layoutEngine';
+import workflowGenerator from '../../services/workflowGenerator';
 
 const useWorkflowStore = create()(
   devtools(
@@ -12,6 +14,13 @@ const useWorkflowStore = create()(
       edges: [],
       isLoading: false,
       error: null,
+      
+      // AI Assistant State
+      conversationHistory: [],
+      conversationPhase: 'initial', // initial, clarifying, designing, refining
+      projectContext: {},
+      layoutMode: 'auto', // auto, manual
+      currentLayoutType: 'hybrid', // sequential, parallel, hybrid, hierarchical
 
       // Actions
       setWorkflows: (workflows) =>
@@ -146,6 +155,122 @@ const useWorkflowStore = create()(
 
       clearError: () =>
         set((state) => {
+          state.error = null;
+        }),
+        
+      // AI Assistant Actions
+      setConversationPhase: (phase) =>
+        set((state) => {
+          state.conversationPhase = phase;
+        }),
+        
+      updateProjectContext: (context) =>
+        set((state) => {
+          state.projectContext = { ...state.projectContext, ...context };
+        }),
+        
+      addConversationMessage: (message) =>
+        set((state) => {
+          state.conversationHistory.push(message);
+        }),
+        
+      // Generate workflow from AI response
+      generateWorkflowFromAI: async (response) => {
+        const { nodes: currentNodes, edges: currentEdges } = get();
+        
+        set((state) => {
+          state.isLoading = true;
+          state.error = null;
+        });
+        
+        try {
+          // Generate workflow structure
+          const workflow = workflowGenerator.generateWorkflow(response);
+          
+          if (workflow && workflow.nodes) {
+            // Apply auto-layout
+            const layoutType = workflow.layout || get().currentLayoutType;
+            const { nodes: layoutedNodes, edges: layoutedEdges } = layoutEngine.applyLayoutWithTransition(
+              workflow.nodes,
+              workflow.edges,
+              layoutType
+            );
+            
+            set((state) => {
+              state.nodes = layoutedNodes;
+              state.edges = layoutedEdges;
+              state.currentLayoutType = layoutType;
+              state.isLoading = false;
+              
+              if (workflow.metadata) {
+                state.conversationPhase = workflow.metadata.phase || state.conversationPhase;
+              }
+            });
+            
+            return workflow;
+          }
+        } catch (error) {
+          console.error('Workflow generation error:', error);
+          set((state) => {
+            state.error = error.message;
+            state.isLoading = false;
+          });
+        }
+      },
+      
+      // Apply layout to existing nodes
+      applyAutoLayout: (layoutType = null) => {
+        const { nodes, edges, currentLayoutType } = get();
+        
+        if (!nodes || nodes.length === 0) return;
+        
+        const type = layoutType || layoutEngine.detectOptimalLayout(nodes, edges);
+        const { nodes: layoutedNodes, edges: layoutedEdges } = layoutEngine.applyLayoutWithTransition(
+          nodes,
+          edges,
+          type
+        );
+        
+        set((state) => {
+          state.nodes = layoutedNodes;
+          state.edges = layoutedEdges;
+          state.currentLayoutType = type;
+        });
+      },
+      
+      // Add agents to existing workflow
+      addAgentsToWorkflow: (newAgents) => {
+        const { nodes, edges } = get();
+        
+        const result = workflowGenerator.addAgentsToWorkflow(nodes, edges, newAgents);
+        
+        // Apply layout to the updated workflow
+        const { nodes: layoutedNodes, edges: layoutedEdges } = layoutEngine.applyLayoutWithTransition(
+          result.nodes,
+          result.edges,
+          get().currentLayoutType
+        );
+        
+        set((state) => {
+          state.nodes = layoutedNodes;
+          state.edges = layoutedEdges;
+        });
+      },
+      
+      // Calculate workflow complexity
+      getWorkflowComplexity: () => {
+        const { nodes, edges } = get();
+        return layoutEngine.calculateComplexity(nodes, edges);
+      },
+      
+      // Reset workflow
+      resetWorkflow: () =>
+        set((state) => {
+          state.nodes = [];
+          state.edges = [];
+          state.conversationHistory = [];
+          state.conversationPhase = 'initial';
+          state.projectContext = {};
           state.error = null;
         }),
     }))

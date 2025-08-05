@@ -1,0 +1,26 @@
+name = "saasit-api"
+main = "backend/cloudflare-worker.js"
+compatibility_date = "2024-01-01"
+
+[env.production]
+name = "saasit-api-production"
+vars = { ENVIRONMENT = "production" }
+
+[env.staging]
+name = "saasit-api-staging"
+vars = { ENVIRONMENT = "staging" }
+
+# KV Namespaces for session storage (optional)
+# [[kv_namespaces]]
+# binding = "SESSIONS"
+# id = "your-kv-namespace-id"
+
+# Durable Objects (optional, for WebSocket support)
+# [[durable_objects.bindings]]
+# name = "WEBSOCKET_HANDLER"
+# class_name = "WebSocketHandler"
+
+# Environment variables will be set in Cloudflare dashboard
+# BACKEND_URL = "https://your-python-backend.fly.dev"
+# CORS_ORIGIN = "https://your-frontend.pages.dev"
+# JWT_SECRET = "your-secret"
