@@ -1,6 +1,6 @@
 # Fly.io configuration for Python backend
 
-app = "saasit-backend"
+app = "saasit-ai-backend-dgoldman"
 primary_region = "iad"
 
 [build]

@@ -155,29 +155,7 @@ class WorkflowGenerator:
         # Get dynamic agent context from loaded agents
         agent_context = self.agent_loader.build_agent_context()
         
-        return f"""You are an AI workflow architect specialized in creating visual agent workflows for software development projects.
-
-CORE RESPONSIBILITIES:
-1. Analyze user project descriptions to understand requirements
-2. Ask strategic clarifying questions to fill knowledge gaps
-3. Generate optimal agent workflows with proper dependencies
-4. Suggest appropriate agents from the available library
-5. Provide clear reasoning for workflow design decisions
-
-{agent_context}
-
-CONVERSATION FLOW:
-1. INITIAL ANALYSIS: Understand the project scope, target audience, and key objectives
-2. CLARIFICATION: Ask 2-3 strategic questions to understand:
-   - Technical stack preferences
-   - Timeline and resource constraints  
-   - Specific feature requirements
-   - Integration needs
-3. WORKFLOW DESIGN: Create a logical flow of agents with clear dependencies
-4. VALIDATION: Explain the reasoning behind agent selection and sequencing
-
-When generating workflows, respond with JSON in this format:
-{
+        workflow_format = '''{
   "phase": "clarifying" | "designing" | "refining",
   "message": "Your response to the user",
   "questions": ["Array of clarifying questions if in clarifying phase"],
@@ -204,7 +182,31 @@ When generating workflows, respond with JSON in this format:
     ],
     "layout": "sequential" | "parallel" | "hybrid"
   }
-}
+}'''
+        
+        return f"""You are an AI workflow architect specialized in creating visual agent workflows for software development projects.
+
+CORE RESPONSIBILITIES:
+1. Analyze user project descriptions to understand requirements
+2. Ask strategic clarifying questions to fill knowledge gaps
+3. Generate optimal agent workflows with proper dependencies
+4. Suggest appropriate agents from the available library
+5. Provide clear reasoning for workflow design decisions
+
+{agent_context}
+
+CONVERSATION FLOW:
+1. INITIAL ANALYSIS: Understand the project scope, target audience, and key objectives
+2. CLARIFICATION: Ask 2-3 strategic questions to understand:
+   - Technical stack preferences
+   - Timeline and resource constraints  
+   - Specific feature requirements
+   - Integration needs
+3. WORKFLOW DESIGN: Create a logical flow of agents with clear dependencies
+4. VALIDATION: Explain the reasoning behind agent selection and sequencing
+
+When generating workflows, respond with JSON in this format:
+{workflow_format}
 
 QUESTIONING STRATEGY:
 Focus on questions that help determine:

@@ -40,18 +40,25 @@ async def lifespan(app: FastAPI):
     # Startup
     global client, db
     try:
-        client = AsyncIOMotorClient(settings.mongo_url)
-        db = client[settings.db_name]
-        app.state.db = db
-        
-        # Create indexes
-        await db.users.create_index("email", unique=True)
-        await db.projects.create_index([("user_id", 1), ("created_at", -1)])
-        
-        logger.info("Connected to MongoDB and created indexes")
+        # Skip MongoDB connection if environment variable is set
+        if os.getenv("SKIP_DB_CONNECTION", "false").lower() == "true":
+            logger.warning("Skipping MongoDB connection (SKIP_DB_CONNECTION=true)")
+            app.state.db = None
+        else:
+            client = AsyncIOMotorClient(settings.mongo_url)
+            db = client[settings.db_name]
+            app.state.db = db
+            
+            # Create indexes
+            await db.users.create_index("email", unique=True)
+            await db.projects.create_index([("user_id", 1), ("created_at", -1)])
+            
+            logger.info("Connected to MongoDB and created indexes")
     except Exception as e:
         logger.error(f"Failed to connect to MongoDB: {e}")
-        raise
+        # Don't raise the error - allow app to start without DB
+        app.state.db = None
+        logger.warning("Starting without database connection")
     
     yield
     
@@ -85,7 +92,7 @@ app.add_middleware(
 if not settings.debug:
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["*.saasit.ai", "saasit.ai", "localhost"]
+        allowed_hosts=["*.saasit.ai", "saasit.ai", "localhost", "*.fly.dev", "saasit-ai-backend-dgoldman.fly.dev"]
     )
 
 # Define Models
@@ -109,6 +116,16 @@ class WorkflowGenerateRequest(BaseModel):
     messages: List[ChatMessage]
     project_context: Optional[Dict[str, Any]] = None
 
+# Root health check endpoint
+@app.get("/")
+async def root():
+    return {
+        "status": "healthy",
+        "message": "SaasIt AI API is running",
+        "version": "1.0.0",
+        "database": "connected" if db else "disconnected"
+    }
+
 # Health check endpoint
 @app.get("/health")
 async def health_check():
@@ -126,6 +143,8 @@ async def root():
 @legacy_api_router.post("/status", response_model=StatusCheck)
 async def create_status_check(input: StatusCheckCreate, request: Request):
     db = request.app.state.db
+    if not db:
+        raise HTTPException(status_code=503, detail="Database connection not available")
     status_dict = input.dict()
     status_obj = StatusCheck(**status_dict)
     _ = await db.status_checks.insert_one(status_obj.dict())
@@ -134,6 +153,8 @@ async def create_status_check(input: StatusCheckCreate, request: Request):
 @legacy_api_router.get("/status", response_model=List[StatusCheck])
 async def get_status_checks(request: Request):
     db = request.app.state.db
+    if not db:
+        raise HTTPException(status_code=503, detail="Database connection not available")
     status_checks = await db.status_checks.find().to_list(1000)
     return [StatusCheck(**status_check) for status_check in status_checks]
 

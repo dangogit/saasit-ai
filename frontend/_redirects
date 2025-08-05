@@ -1,5 +1,5 @@
 # Cloudflare Pages redirects for React Router
 /*    /index.html   200
 
-# API proxy to backend (update with your Workers URL)
-/api/*  https://saasit-api.yourdomain.workers.dev/:splat  200
+# API proxy to backend
+/api/*  https://saasit-ai-backend-dgoldman.fly.dev/api/:splat  200
