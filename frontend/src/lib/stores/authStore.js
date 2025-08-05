@@ -51,7 +51,7 @@ const useAuthStore = create()(
 
         try {
           // Send the Google credential to your backend
-          const response = await fetch('/api/auth/google', {
+          const response = await fetch('/api/v1/auth/google', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -95,7 +95,7 @@ const useAuthStore = create()(
         });
 
         try {
-          const response = await fetch('/api/auth/login', {
+          const response = await fetch('/api/v1/auth/login', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -137,12 +137,17 @@ const useAuthStore = create()(
         });
 
         try {
-          const response = await fetch('/api/auth/register', {
+          // Split name into first and last name
+          const nameParts = name.trim().split(' ');
+          const first_name = nameParts[0] || '';
+          const last_name = nameParts.slice(1).join(' ') || nameParts[0] || '';
+
+          const response = await fetch('/api/v1/auth/register', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ email, password, name }),
+            body: JSON.stringify({ email, password, first_name, last_name }),
           });
 
           if (!response.ok) {
@@ -198,7 +203,7 @@ const useAuthStore = create()(
 
         try {
           // Verify token with backend
-          const response = await fetch('/api/auth/verify', {
+          const response = await fetch('/api/v1/auth/verify', {
             headers: {
               'Authorization': `Bearer ${token}`,
             },
