@@ -16,12 +16,12 @@ import { Layers } from 'lucide-react';
 const WorkflowCanvasInner = ({ isExecuting }) => {
   const reactFlowWrapper = useRef(null);
   const [reactFlowInstance, setReactFlowInstance] = useState(null);
-  
+
   // Memoize nodeTypes to prevent React Flow warnings
   const nodeTypes = useMemo(() => ({
     agent: AgentNode,
   }), []);
-  
+
   const {
     nodes,
     edges,
@@ -58,7 +58,7 @@ const WorkflowCanvasInner = ({ isExecuting }) => {
 
       const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect();
       const agentData = event.dataTransfer.getData('application/json');
-      
+
       if (!agentData || !reactFlowBounds || !reactFlowInstance) {
         return;
       }
@@ -134,10 +134,10 @@ const WorkflowCanvasInner = ({ isExecuting }) => {
             Auto Layout
           </Button>
         </div>
-        
-        <Background 
-          variant="dots" 
-          gap={20} 
+
+        <Background
+          variant="dots"
+          gap={20}
           size={1}
           color="rgba(153, 153, 153, 0.3)"
         />
