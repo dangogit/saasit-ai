@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect, HTTPException, Request
+from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect, HTTPException, Request, Depends
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -13,10 +13,15 @@ from datetime import datetime
 import json
 import asyncio
 from contextlib import asynccontextmanager
+from pymongo import IndexModel
 
 # Import app modules
 from app.config import settings
 from app.routers import auth, projects
+from app.middleware.auth import get_current_active_user, check_rate_limit
+from app.middleware.security import setup_security_middleware
+from app.middleware.oauth_cors import setup_oauth_cors_middleware
+from app.models.user import TokenData
 from services import ClaudeService, WorkflowGenerator
 
 
@@ -29,6 +34,82 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+async def create_database_indexes(db):
+    """
+    Create all necessary database indexes for optimal query performance.
+    This includes indexes for authentication, Google OAuth, and project management.
+    """
+    try:
+        # Users collection indexes
+        users_indexes = [
+            # Existing email index (unique)
+            IndexModel("email", unique=True, name="email_unique"),
+            
+            # Google OAuth indexes
+            IndexModel("google_id", unique=True, sparse=True, name="google_id_unique_sparse"),
+            
+            # Provider index for efficient filtering by auth method
+            IndexModel("provider", name="provider_index"),
+            
+            # Compound index for Google OAuth user lookup optimization
+            # Used in queries that search by email OR google_id
+            IndexModel([("email", 1), ("google_id", 1)], name="email_google_id_compound"),
+            
+            # User status and activity indexes
+            IndexModel("is_active", name="is_active_index"),
+            IndexModel("created_at", name="created_at_index"),
+            IndexModel("last_login", name="last_login_index"),
+            
+            # User verification indexes
+            IndexModel("is_verified", name="is_verified_index"),
+            IndexModel("email_verification_token", sparse=True, name="email_verification_token_sparse"),
+            
+            # Password reset indexes
+            IndexModel("password_reset_token", sparse=True, name="password_reset_token_sparse"),
+            IndexModel("password_reset_expires", sparse=True, name="password_reset_expires_sparse"),
+            
+            # Subscription tier index for user management
+            IndexModel("subscription.tier", name="subscription_tier_index")
+        ]
+        
+        # Create users indexes
+        await db.users.create_indexes(users_indexes)
+        logger.info("Created users collection indexes")
+        
+        # Projects collection indexes
+        projects_indexes = [
+            # Existing compound index for user projects
+            IndexModel([("user_id", 1), ("created_at", -1)], name="user_id_created_at_compound"),
+            
+            # Additional project indexes
+            IndexModel("user_id", name="user_id_index"),
+            IndexModel("created_at", name="project_created_at_index"),
+            IndexModel("updated_at", name="project_updated_at_index"),
+            IndexModel("status", name="project_status_index")
+        ]
+        
+        # Create projects indexes
+        await db.projects.create_indexes(projects_indexes)
+        logger.info("Created projects collection indexes")
+        
+        # Status checks collection indexes (for legacy API)
+        status_checks_indexes = [
+            IndexModel("timestamp", name="timestamp_index"),
+            IndexModel("client_name", name="client_name_index")
+        ]
+        
+        # Create status checks indexes
+        await db.status_checks.create_indexes(status_checks_indexes)
+        logger.info("Created status_checks collection indexes")
+        
+        logger.info("All database indexes created successfully")
+        
+    except Exception as e:
+        logger.error(f"Error creating database indexes: {e}")
+        # Don't raise the error - allow app to start even if index creation fails
+        logger.warning("Continuing without some indexes - performance may be affected")
 
 # MongoDB client (will be initialized in lifespan)
 client: Optional[AsyncIOMotorClient] = None
@@ -49,9 +130,8 @@ async def lifespan(app: FastAPI):
             db = client[settings.db_name]
             app.state.db = db
             
-            # Create indexes
-            await db.users.create_index("email", unique=True)
-            await db.projects.create_index([("user_id", 1), ("created_at", -1)])
+            # Create indexes for optimized database queries
+            await create_database_indexes(db)
             
             logger.info("Connected to MongoDB and created indexes")
     except Exception as e:
@@ -80,20 +160,76 @@ api_v1_router = APIRouter(prefix=settings.api_v1_str)
 legacy_api_router = APIRouter(prefix="/api")  # For backward compatibility
 
 
-# Middleware
+# CORS Middleware (must be added first)
+# Enhanced configuration for Google OAuth and production security
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
     allow_origins=settings.backend_cors_origins,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=[
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE",
+        "OPTIONS",
+        "HEAD",
+        "PATCH"
+    ],
+    allow_headers=[
+        "Accept",
+        "Accept-Language",
+        "Content-Language",
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "X-CSRF-Token",
+        "X-API-Key",
+        "Origin",
+        "Referer",
+        "User-Agent",
+        "Cache-Control",
+        "Pragma"
+    ],
+    expose_headers=[
+        "X-Total-Count",
+        "X-Page-Count",
+        "Content-Range",
+        "Location"
+    ],
+    max_age=86400  # 24 hours preflight cache
 )
 
+# Trusted Host Middleware for production
+# Enhanced with Google OAuth and development hosts
 if not settings.debug:
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["*.saasit.ai", "saasit.ai", "localhost", "*.fly.dev", "saasit-ai-backend-dgoldman.fly.dev"]
+        allowed_hosts=[
+            # Production domains
+            "*.saasit.ai",
+            "saasit.ai",
+            "www.saasit.ai",
+            "app.saasit.ai",
+            
+            # Development hosts
+            "localhost",
+            "127.0.0.1",
+            
+            # Deployment platforms
+            "*.fly.dev",
+            "saasit-ai-backend-dgoldman.fly.dev",
+            
+            # Cloudflare Pages
+            "*.pages.dev",
+            "saasit-ai.pages.dev"
+        ]
     )
+
+# Setup additional security middleware
+setup_security_middleware(app)
+
+# Setup OAuth-specific CORS middleware for enhanced authentication security
+setup_oauth_cors_middleware(app)
 
 # Define Models
 class StatusCheck(BaseModel):
@@ -168,13 +304,19 @@ except ValueError as e:
     workflow_generator = None
 
 @legacy_api_router.post("/chat")
-async def chat_with_claude(chat_request: ChatRequest):
+async def chat_with_claude(
+    chat_request: ChatRequest,
+    current_user: TokenData = Depends(check_rate_limit)
+):
     if not claude_service:
         raise HTTPException(status_code=503, detail="Claude service not available. Please set ANTHROPIC_API_KEY.")
     
     try:
         # Convert messages to Claude format
         messages = [{"role": msg.role, "content": msg.content} for msg in chat_request.messages]
+        
+        # Log usage for rate limiting and analytics
+        logger.info(f"Chat request from user: {current_user.user_id} (tier: {current_user.tier})")
         
         # Use workflow generator for chat
         response = await workflow_generator.generate_workflow(
@@ -197,11 +339,17 @@ async def chat_with_claude(chat_request: ChatRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @legacy_api_router.post("/workflow/generate")
-async def generate_workflow(workflow_request: WorkflowGenerateRequest):
+async def generate_workflow(
+    workflow_request: WorkflowGenerateRequest,
+    current_user: TokenData = Depends(check_rate_limit)
+):
     if not workflow_generator:
         raise HTTPException(status_code=503, detail="Workflow generator not available. Please set ANTHROPIC_API_KEY.")
     
     try:
+        # Log usage for rate limiting and analytics
+        logger.info(f"Workflow generation request from user: {current_user.user_id} (tier: {current_user.tier})")
+        
         messages = [{"role": msg.role, "content": msg.content} for msg in workflow_request.messages]
         
         response = await workflow_generator.generate_workflow(
@@ -226,8 +374,38 @@ async def generate_workflow(workflow_request: WorkflowGenerateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 # WebSocket endpoint for streaming chat
+# Note: WebSocket authentication should be handled via query params or headers
+# For now, we'll add basic authentication check in the websocket handler
 @app.websocket("/ws/chat")
 async def websocket_chat(websocket: WebSocket):
+    # WebSocket authentication via query parameter
+    # In production, consider using a more secure method
+    token = websocket.query_params.get("token")
+    
+    if not token:
+        await websocket.close(code=4001, reason="Authentication required")
+        return
+    
+    # Validate token
+    try:
+        from app.utils.security import decode_token
+        payload = decode_token(token)
+        if payload.get("type") != "access":
+            await websocket.close(code=4001, reason="Invalid token type")
+            return
+        
+        user_id = payload.get("sub")
+        if not user_id:
+            await websocket.close(code=4001, reason="Invalid token")
+            return
+            
+        logger.info(f"WebSocket authenticated for user: {user_id}")
+        
+    except Exception as e:
+        logger.warning(f"WebSocket authentication failed: {str(e)}")
+        await websocket.close(code=4001, reason="Authentication failed")
+        return
+    
     await websocket.accept()
     
     if not workflow_generator:

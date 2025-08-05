@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Header
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from typing import Dict
+from typing import Dict, Optional
 
 from app.models.user import UserCreate, UserLogin, Token, PasswordReset
 from app.services.auth_service import AuthService
+from app.services.google_oauth_service import GoogleOAuthService
 from app.utils.security import verify_token_type
 from app.middleware.auth import get_current_user
 from app.models.user import TokenData
@@ -185,3 +186,128 @@ async def logout(
     # In a real app, you might want to blacklist the token
     # For now, we'll just return success
     return {"message": "Logged out successfully"}
+
+
+@router.get("/google/login")
+async def google_login(
+    request: Request,
+    state: str = None,
+    origin: Optional[str] = Header(None),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Initialize Google OAuth login flow with enhanced security
+    
+    Returns authorization URL to redirect user to Google
+    
+    - **state**: Optional state parameter for CSRF protection
+    - **origin**: Request origin header for validation
+    """
+    # Get origin from header or referer
+    request_origin = origin or request.headers.get("referer")
+    
+    google_oauth = GoogleOAuthService(db)
+    authorization_url = google_oauth.get_authorization_url(state, request_origin)
+    
+    return {
+        "authorization_url": authorization_url,
+        "message": "Redirect user to this URL to complete Google OAuth",
+        "state": state  # Return state if generated automatically
+    }
+
+
+@router.post("/google/callback", response_model=Dict)
+async def google_callback(
+    request: Request,
+    code: str,
+    state: str = None,
+    origin: Optional[str] = Header(None),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Handle Google OAuth callback with enhanced security
+    
+    This endpoint processes the authorization code from Google
+    and returns user info with JWT tokens
+    
+    - **code**: Authorization code from Google redirect
+    - **state**: State parameter for CSRF validation
+    - **origin**: Request origin header for validation
+    """
+    # Get origin from header or referer
+    request_origin = origin or request.headers.get("referer")
+    
+    google_oauth = GoogleOAuthService(db)
+    result = await google_oauth.authenticate_user(code, state, request_origin)
+    
+    # Add CORS headers to response if needed
+    from app.utils.cors_utils import get_oauth_cors_headers
+    if request_origin:
+        cors_headers = get_oauth_cors_headers(request_origin)
+        # Note: In FastAPI, you'd typically handle this via middleware
+        # but we can add custom headers to the response if needed
+    
+    return result
+
+
+@router.post("/google/link")
+async def link_google_account(
+    code: str,
+    current_user: TokenData = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Link Google account to existing user
+    
+    Requires authentication. Links Google OAuth to current user account.
+    
+    - **code**: Authorization code from Google
+    """
+    google_oauth = GoogleOAuthService(db)
+    
+    # Exchange code for tokens and get user info
+    tokens = await google_oauth.exchange_code_for_tokens(code)
+    id_token_str = tokens.get('id_token')
+    
+    if not id_token_str:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No ID token received from Google"
+        )
+    
+    # Verify ID token and extract user info
+    verified_info = await google_oauth.verify_id_token(id_token_str)
+    google_user = google_oauth._extract_user_data(verified_info)
+    
+    # Link to current user
+    success = await google_oauth.link_google_account(current_user.user_id, google_user)
+    
+    if success:
+        return {"message": "Google account linked successfully"}
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to link Google account"
+        )
+
+
+@router.delete("/google/unlink")
+async def unlink_google_account(
+    current_user: TokenData = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Unlink Google account from current user
+    
+    Requires authentication. Removes Google OAuth connection from user account.
+    """
+    google_oauth = GoogleOAuthService(db)
+    success = await google_oauth.unlink_google_account(current_user.user_id)
+    
+    if success:
+        return {"message": "Google account unlinked successfully"}
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to unlink Google account"
+        )
