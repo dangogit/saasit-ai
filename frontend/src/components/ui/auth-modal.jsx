@@ -126,15 +126,17 @@ const AuthModal = () => {
 
         <div className="space-y-4">
           {/* Google Sign-In */}
-          <GoogleSignInButton 
-            className="w-full"
-            onSuccess={() => {
-              // Modal will close automatically via store
-            }}
-            onError={(error) => {
-              console.error('Google sign-in error:', error);
-            }}
-          />
+          <div className="flex justify-center">
+            <GoogleSignInButton 
+              className="w-full"
+              onSuccess={() => {
+                // Modal will close automatically via store
+              }}
+              onError={(error) => {
+                console.error('Google sign-in error:', error);
+              }}
+            />
+          </div>
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">

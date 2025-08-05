@@ -33,7 +33,7 @@ const GoogleSignInButton = ({
   };
 
   return (
-    <div className={cn("w-full", className)}>
+    <div className={cn("w-full flex justify-center", className)}>
       <GoogleLogin
         onSuccess={handleSuccess}
         onError={handleError}
@@ -42,7 +42,6 @@ const GoogleSignInButton = ({
         disabled={disabled || isGoogleLoading}
         theme="outline"
         shape="rectangular"
-        width="100%"
         text="continue_with"
         render={({ onClick, disabled: googleDisabled }) => (
           <Button
