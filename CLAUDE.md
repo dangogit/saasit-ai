@@ -98,3 +98,30 @@ Based on the project documentation, priority areas include:
 3. Creating agent execution engine integration
 4. Adding authentication and user management
 5. Implementing real-time WebSocket communication for execution updates
+
+## System Architecture Updates
+
+### Infrastructure Configuration
+- Added Cloudflare Pages for frontend hosting
+- Migrated backend to Fly.io
+- Configured MongoDB Atlas connection (with current SSL challenges)
+- Implemented basic API proxy through Cloudflare's _redirects
+
+### Deployment Strategy
+- Containerized backend with Docker
+- Environment variables managed via Fly.io secrets
+- Cloudflare CDN for static asset delivery
+- Graceful degradation when database is unavailable
+
+### Technology Stack Refinements
+- Frontend: React with Craco, Tailwind CSS, Shadcn/ui
+- Backend: FastAPI with Motor, Uvicorn ASGI server
+- State Management: Zustand
+- Visualization: React Flow for workflow designer
+
+### Pending Technical Improvements
+- Resolve MongoDB SSL connection issues
+- Implement comprehensive user authentication
+- Expand API endpoints for workflow management
+- Add WebSocket support for real-time updates
+- Integrate Claude Code SDK for AI agent execution
