@@ -5,6 +5,7 @@ import LandingPage from "./components/LandingPage";
 import WorkflowDesigner from "./components/WorkflowDesigner";
 import GoogleOAuthProvider from "./components/providers/GoogleOAuthProvider";
 import AuthProvider from "./components/providers/AuthProvider";
+import AuthModal from "./components/ui/auth-modal";
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
               />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
+            <AuthModal />
           </div>
         </Router>
       </AuthProvider>
