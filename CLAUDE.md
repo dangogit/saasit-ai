@@ -125,3 +125,18 @@ Based on the project documentation, priority areas include:
 - Expand API endpoints for workflow management
 - Add WebSocket support for real-time updates
 - Integrate Claude Code SDK for AI agent execution
+- ⏺ I can see the Clerk test mode credentials from your
+  screenshot. These test credentials are useful for
+  development and testing:
+
+  - Test Email: your_email+clerk_test@example.com (or
+  any email with +clerk_test subaddress)
+  - Test Verification Code: 424242
+  - Test Phone Number: +15555550100 (last 3 digits can
+  be 100-199)
+
+  These test credentials will work in Clerk's test mode
+  without sending actual emails or SMS messages. The
+  verification code 424242 can be used to bypass the
+  normal verification flow during development and
+  testing.
