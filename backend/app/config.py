@@ -82,7 +82,10 @@ class Settings(BaseSettings):
         "saasit.ai",
         "www.saasit.ai",
         "app.saasit.ai",
-        "saasit-ai.pages.dev"
+        "saasit-ai.pages.dev",
+        # Backend domains for OAuth callbacks
+        "saasit-ai-backend-dgoldman.fly.dev",
+        "fly.dev"  # Allow all Fly.io subdomains
     ]
     
     # Anthropic
