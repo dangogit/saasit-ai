@@ -257,6 +257,11 @@ class GoogleOAuthService:
             GoogleOAuthUser model instance
         """
         try:
+            # Google ID tokens use 'sub' for user ID, while userinfo API uses 'id'
+            google_id = user_info.get('sub') or user_info.get('id')
+            if not google_id:
+                raise ValueError("No user ID found in Google response")
+            
             # Extract name parts
             given_name = user_info.get('given_name', '')
             family_name = user_info.get('family_name', '')
@@ -269,12 +274,12 @@ class GoogleOAuthService:
                 family_name = name_parts[1] if len(name_parts) > 1 else ''
             
             return GoogleOAuthUser(
-                google_id=user_info['id'],
+                google_id=google_id,
                 email=user_info['email'],
                 first_name=given_name or 'User',
                 last_name=family_name or '',
                 profile_picture=user_info.get('picture'),
-                verified_email=user_info.get('verified_email', True)
+                verified_email=user_info.get('verified_email', user_info.get('email_verified', True))
             )
         except Exception as e:
             logger.error(f"Error extracting user data: {str(e)}")
