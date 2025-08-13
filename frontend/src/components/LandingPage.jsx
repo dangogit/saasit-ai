@@ -3,12 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Sparkles, Users, Zap, Clock, Shield, ArrowRight, X, Mail, User, MessageSquare } from 'lucide-react';
 import { pricingTiers } from '../data/mock';
 import WorkflowIllustration from './WorkflowIllustration';
-import useAuth from '../hooks/useAuth';
-import UserMenu from './ui/user-menu';
+import { useUser, SignInButton, UserButton } from '@clerk/clerk-react';
+import { Button } from './ui/button';
 
 const LandingPage = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, openLoginModal } = useAuth();
+  const { isSignedIn, user, isLoaded } = useUser();
   const [showContactForm, setShowContactForm] = useState(false);
   const [contactForm, setContactForm] = useState({
     name: '',
@@ -17,11 +17,10 @@ const LandingPage = () => {
   });
   
   const handleGetStarted = () => {
-    if (isAuthenticated) {
+    if (isSignedIn) {
       navigate('/app');
-    } else {
-      openLoginModal();
     }
+    // If not signed in, SignInButton will handle the modal
   };
   
   const handleContactSales = () => {
@@ -53,19 +52,20 @@ const LandingPage = () => {
           <div className="flex items-center justify-between w-full">
             <div className="logo font-mono">SaasIt.ai</div>
             <div className="nav-actions">
-              {isAuthenticated ? (
-                <UserMenu />
+              {isSignedIn ? (
+                <UserButton afterSignOutUrl="/" />
               ) : (
                 <>
-                  <button 
-                    className="btn-secondary" 
-                    onClick={openLoginModal}
-                  >
-                    Sign In
-                  </button>
-                  <button className="btn-primary" onClick={handleGetStarted}>
-                    Get Started
-                  </button>
+                  <SignInButton mode="modal">
+                    <button className="btn-secondary">
+                      Sign In
+                    </button>
+                  </SignInButton>
+                  <SignInButton mode="modal" afterSignInUrl="/app">
+                    <button className="btn-primary">
+                      Get Started
+                    </button>
+                  </SignInButton>
                 </>
               )}
             </div>
@@ -98,9 +98,17 @@ const LandingPage = () => {
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 fade-in-up animation-delay-600">
-            <button className="btn-primary hover-lift" onClick={handleGetStarted}>
-              Start Building Now
-            </button>
+            {isSignedIn ? (
+              <button className="btn-primary hover-lift" onClick={handleGetStarted}>
+                Start Building Now
+              </button>
+            ) : (
+              <SignInButton mode="modal" afterSignInUrl="/app">
+                <button className="btn-primary hover-lift">
+                  Start Building Now
+                </button>
+              </SignInButton>
+            )}
             <button className="btn-secondary hover-lift">
               Watch Demo
             </button>
