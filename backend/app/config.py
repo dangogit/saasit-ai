@@ -50,9 +50,14 @@ class Settings(BaseSettings):
         "https://oauth2.googleapis.com",
         "https://www.googleapis.com",
         
-        # Cloudflare Pages preview domains (for staging)
-        "https://*.pages.dev",
+        # Cloudflare Pages domains (for staging and previews)
         "https://saasit-ai.pages.dev",
+        # Note: Specific preview URLs need to be added manually if needed
+        # Example: "https://1234abcd.saasit-ai.pages.dev"
+        
+        # Additional development domains
+        "http://localhost:8000",  # For backend development
+        "http://127.0.0.1:8000",
     ]
     
     # Email Settings
@@ -66,8 +71,8 @@ class Settings(BaseSettings):
     # Google OAuth Configuration
     google_client_id: Optional[str] = None
     google_client_secret: Optional[str] = None
-    # Default redirect URI for development - should be overridden in production
-    google_redirect_uri: Optional[str] = "http://localhost:8000/api/v1/auth/google/callback"
+    # Default redirect URI for development - automatically detects production
+    google_redirect_uri: Optional[str] = None  # Will be set dynamically based on environment
     
     # Additional OAuth settings for CORS and security
     # Can be overridden via OAUTH_ALLOWED_REDIRECT_HOSTS environment variable

@@ -50,6 +50,13 @@ const useAuthStore = create()(
         });
 
         try {
+          // Validate credential response
+          if (!credentialResponse?.credential) {
+            throw new Error('No credential received from Google');
+          }
+
+          console.log('Sending Google OAuth credential to backend...');
+
           // Send the Google credential to your backend
           const response = await fetch('/api/v1/auth/google', {
             method: 'POST',
@@ -61,11 +68,33 @@ const useAuthStore = create()(
             }),
           });
 
-          if (!response.ok) {
-            throw new Error('Authentication failed');
+          let data;
+          try {
+            data = await response.json();
+          } catch (parseError) {
+            console.error('Failed to parse backend response:', parseError);
+            throw new Error('Invalid response from authentication server');
           }
 
-          const data = await response.json();
+          if (!response.ok) {
+            // Handle specific error responses from backend
+            const errorMessage = data?.detail || data?.message || `Authentication failed (${response.status})`;
+            console.error('Backend authentication error:', {
+              status: response.status,
+              statusText: response.statusText,
+              error: errorMessage,
+              data
+            });
+            throw new Error(errorMessage);
+          }
+
+          // Validate response data
+          if (!data.token || !data.user) {
+            console.error('Invalid response data from backend:', data);
+            throw new Error('Invalid response from authentication server');
+          }
+
+          console.log('Google OAuth authentication successful');
 
           // Store the JWT token
           localStorage.setItem('authToken', data.token);
@@ -80,8 +109,21 @@ const useAuthStore = create()(
 
         } catch (error) {
           console.error('Google login error:', error);
+          
+          // Set appropriate error message based on error type
+          let errorMessage = 'Google login failed';
+          if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            errorMessage = 'Unable to connect to authentication server. Please check your internet connection.';
+          } else if (error.message.includes('Google')) {
+            errorMessage = error.message;
+          } else if (error.message.includes('Authentication')) {
+            errorMessage = 'Google authentication failed. Please try again.';
+          } else if (error.message.includes('Invalid response')) {
+            errorMessage = 'Server error. Please try again later.';
+          }
+
           set((state) => {
-            state.error = error.message || 'Google login failed';
+            state.error = errorMessage;
             state.isGoogleLoading = false;
           });
         }
@@ -250,8 +292,23 @@ const useAuthStore = create()(
       // Handle Google OAuth error
       handleGoogleError: (error) => {
         console.error('Google OAuth error:', error);
+        
+        let errorMessage = 'Google Sign-In failed';
+        
+        if (error?.error === 'popup_closed_by_user') {
+          errorMessage = 'Google Sign-In was cancelled';
+        } else if (error?.error === 'popup_blocked_by_browser') {
+          errorMessage = 'Google Sign-In popup was blocked. Please allow popups and try again.';
+        } else if (error?.error === 'idpiframe_initialization_failed') {
+          errorMessage = 'Google Sign-In is not available. Please check your internet connection.';
+        } else if (error?.type === 'network_error') {
+          errorMessage = 'Network error. Please check your internet connection and try again.';
+        } else if (error?.message) {
+          errorMessage = error.message;
+        }
+        
         set((state) => {
-          state.error = 'Google Sign-In failed. Please try again.';
+          state.error = errorMessage;
           state.isGoogleLoading = false;
         });
       },
