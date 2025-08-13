@@ -3,29 +3,34 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import "./App.css";
 import LandingPage from "./components/LandingPage";
 import WorkflowDesigner from "./components/WorkflowDesigner";
-import GoogleOAuthProvider from "./components/providers/GoogleOAuthProvider";
-import AuthProvider from "./components/providers/AuthProvider";
-import AuthModal from "./components/ui/auth-modal";
+import ClerkAuthProvider from "./components/providers/ClerkAuthProvider";
+import { RedirectToSignIn, SignedIn, SignedOut } from "@clerk/clerk-react";
 
 function App() {
   return (
-    <GoogleOAuthProvider>
-      <AuthProvider>
-        <Router>
-          <div className="App">
-            <Routes>
-              <Route path="/" element={<LandingPage />} />
-              <Route 
-                path="/app" 
-                element={<WorkflowDesigner />} 
-              />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-            <AuthModal />
-          </div>
-        </Router>
-      </AuthProvider>
-    </GoogleOAuthProvider>
+    <ClerkAuthProvider>
+      <Router>
+        <div className="App">
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route 
+              path="/app" 
+              element={
+                <>
+                  <SignedIn>
+                    <WorkflowDesigner />
+                  </SignedIn>
+                  <SignedOut>
+                    <RedirectToSignIn />
+                  </SignedOut>
+                </>
+              } 
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </div>
+      </Router>
+    </ClerkAuthProvider>
   );
 }
 
