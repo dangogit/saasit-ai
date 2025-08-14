@@ -17,8 +17,9 @@ from pymongo import IndexModel
 
 # Import app modules
 from app.config import settings
-from app.routers import auth, projects, executions, websocket
+from app.routers import auth, projects, executions, websocket, github, execution_modes, project_intelligence
 from app.middleware.auth import get_current_active_user, check_rate_limit
+from app.middleware.clerk_auth import require_clerk_user
 from app.middleware.security import setup_security_middleware
 from app.middleware.oauth_cors import setup_oauth_cors_middleware
 from app.models.user import TokenData
@@ -340,7 +341,7 @@ except ValueError as e:
 @legacy_api_router.post("/chat")
 async def chat_with_claude(
     chat_request: ChatRequest,
-    current_user: TokenData = Depends(check_rate_limit)
+    current_user: TokenData = Depends(require_clerk_user)
 ):
     if not claude_service:
         raise HTTPException(status_code=503, detail="Claude service not available. Please set ANTHROPIC_API_KEY.")
@@ -492,6 +493,9 @@ async def websocket_chat(websocket: WebSocket):
 api_v1_router.include_router(auth.router)
 api_v1_router.include_router(projects.router)
 api_v1_router.include_router(executions.router)
+api_v1_router.include_router(github.router)
+api_v1_router.include_router(execution_modes.router)
+api_v1_router.include_router(project_intelligence.router)
 
 # Include WebSocket router at app level
 app.include_router(websocket.router)

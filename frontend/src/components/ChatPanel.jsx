@@ -6,7 +6,7 @@ import apiClient from '../services/api';
 import useWorkflowStore from '../lib/stores/workflowStore';
 
 const ChatPanel = ({ onAddAgent }) => {
-  const { getToken } = useAuth();
+  const { getToken, isSignedIn, isLoaded } = useAuth();
   const [messages, setMessages] = useState(chatMessages);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -36,15 +36,33 @@ const ChatPanel = ({ onAddAgent }) => {
   useEffect(() => {
     const setAuthToken = async () => {
       try {
+        console.log('Clerk auth status:', { isLoaded, isSignedIn });
+        if (!isLoaded) {
+          console.log('Clerk not loaded yet, waiting...');
+          return;
+        }
+        
+        if (!isSignedIn) {
+          console.log('User not signed in to Clerk');
+          setError('Please sign in to use the chat feature');
+          return;
+        }
+        
         const token = await getToken();
+        console.log('Got token from Clerk:', token ? 'Token received' : 'No token');
         apiClient.setAuthToken(token);
+        
+        if (error && error.includes('sign in')) {
+          setError(null); // Clear sign-in error if we get a token
+        }
       } catch (error) {
         console.error('Failed to get auth token:', error);
+        setError('Authentication error: ' + error.message);
       }
     };
     
     setAuthToken();
-  }, [getToken]);
+  }, [getToken, isLoaded, isSignedIn, error]);
 
   // Initialize WebSocket connection for streaming
   useEffect(() => {
@@ -149,6 +167,11 @@ const ChatPanel = ({ onAddAgent }) => {
     });
 
     try {
+      // Ensure we have a fresh token before sending
+      const token = await getToken();
+      console.log('Sending message with token:', token ? 'Token available' : 'No token');
+      apiClient.setAuthToken(token);
+      
       if (useStreaming && wsClient.current && isConnected) {
         // Use WebSocket for streaming
         const aiMessage = {
