@@ -294,7 +294,7 @@ async def root():
         "status": "healthy",
         "message": "SaasIt AI API is running",
         "version": "1.0.0",
-        "database": "connected" if db else "disconnected"
+        "database": "connected" if db is not None else "disconnected"
     }
 
 # Health check endpoint
@@ -303,7 +303,7 @@ async def health_check():
     return {
         "status": "healthy",
         "version": "1.0.0",
-        "database": "connected" if db else "disconnected"
+        "database": "connected" if db is not None else "disconnected"
     }
 
 # Legacy API endpoints (backward compatibility)

@@ -86,8 +86,27 @@ class ClerkAuth:
                     break
             
             if not public_key:
-                logger.error(f"Unable to find matching public key for kid={kid}. Available kids: {available_kids}")
-                raise JWTError("Unable to find matching public key")
+                logger.warning(f"Key ID {kid} not found in cached JWKS. Available kids: {available_kids}")
+                logger.info("Attempting to refresh JWKS cache and retry...")
+                
+                # Clear cache and fetch fresh JWKS
+                self.jwks_cache = {}
+                self.jwks_cache_expiry = None
+                jwks = await self.get_clerk_jwks()
+                
+                # Try again with fresh JWKS
+                available_kids = [key.get('kid') for key in jwks.get('keys', [])]
+                logger.info(f"Fresh JWKS available key IDs: {available_kids}")
+                
+                for key in jwks.get('keys', []):
+                    if key.get('kid') == kid:
+                        public_key = key
+                        logger.info(f"Found matching key after JWKS refresh: {kid}")
+                        break
+                
+                if not public_key:
+                    logger.error(f"Unable to find matching public key for kid={kid} even after refresh. Available kids: {available_kids}")
+                    raise JWTError("Unable to find matching public key")
             
             # Convert JWK to PEM format for verification
             from cryptography.hazmat.primitives import serialization
