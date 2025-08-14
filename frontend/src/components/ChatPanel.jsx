@@ -48,8 +48,8 @@ const ChatPanel = ({ onAddAgent }) => {
           return;
         }
         
-        const token = await getToken();
-        console.log('Got token from Clerk:', token ? 'Token received' : 'No token');
+        const token = await getToken({ skipCache: true });
+        console.log('Got token from Clerk:', token ? 'Token received (fresh)' : 'No token');
         apiClient.setAuthToken(token);
         
         if (error && error.includes('sign in')) {
@@ -167,9 +167,9 @@ const ChatPanel = ({ onAddAgent }) => {
     });
 
     try {
-      // Ensure we have a fresh token before sending
-      const token = await getToken();
-      console.log('Sending message with token:', token ? 'Token available' : 'No token');
+      // Force a fresh token to handle Clerk key rotation
+      const token = await getToken({ skipCache: true });
+      console.log('Sending message with token:', token ? 'Token available (fresh)' : 'No token');
       apiClient.setAuthToken(token);
       
       if (useStreaming && wsClient.current && isConnected) {
