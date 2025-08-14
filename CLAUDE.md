@@ -281,3 +281,83 @@ Based on the project documentation, priority areas include:
 │ │ This architecture provides a robust, secure, and scalable foundation for streaming Claude Code   │ │
 │ │ execution data to the SaasIt.ai web interface while maintaining enterprise-grade security and    │ │
 │ │ performance standards.
+- Agent System Prompt Location
+
+  Main File: /Users/danielgoldman/Desktop/projects/saasit-ai/backend/services/claude_service.py
+
+  Key Components:
+
+  1. System Prompt Builder (lines 154-219): The _build_system_prompt() method in the WorkflowGenerator class
+  2. Agent Context Loader (/Users/danielgoldman/Desktop/projects/saasit-ai/backend/services/agent_loader.py):
+   Loads all agent definitions from the /agents directory
+  3. Agent Definitions: Individual agent files in /Users/danielgoldman/Desktop/projects/saasit-ai/agents/
+  organized by category
+
+  System Prompt Structure:
+
+  The system prompt includes:
+  - Core responsibilities (lines 189-194)
+  - Dynamic agent context (loaded from agent_loader.build_agent_context())
+  - Conversation flow (lines 198-207)
+  - Workflow format specification (lines 158-185)
+  - Questioning strategy (lines 211-217)
+
+  How It Works:
+
+  1. AgentLoader scans the /agents directory for .md files
+  2. Each agent file has YAML frontmatter with metadata (name, description, tools, etc.)
+  3. build_agent_context() creates a summary of all available agents by category
+  4. This context gets injected into the system prompt dynamically
+  5. The system prompt guides Claude to create workflows using these agents
+
+  The system prompt is currently designed for workflow generation and agent orchestration, focusing on
+  helping users build AI development teams through conversational planning.
+- ✅ Completed Components
+
+  Backend Infrastructure:
+  - Execution Models (app/models/execution.py): Complete data models for executions, steps, terminal output,
+  and WebSocket messaging
+  - Execution Service (app/services/execution_service.py): Core execution orchestration with WebSocket
+  notification system
+  - WebSocket Router (app/routers/websocket.py): Real-time /ws/execution/{execution_id} endpoint with
+  authentication
+  - REST API Endpoints (app/routers/executions.py): Full CRUD operations for execution management
+  - Database Integration: MongoDB indexes and schema optimized for execution queries
+
+  Frontend Real-Time Interface:
+  - Enhanced Zustand Store: Complete execution state management with real-time updates
+  - ExecutionWebSocketService: Robust WebSocket client with reconnection and message handling
+  - Real-Time ExecutionPanel: Live terminal display with syntax highlighting, filtering, and progress
+  tracking
+  - WorkflowDesigner Integration: Seamless execution initiation from workflow canvas
+
+  Key Features Implemented:
+  - 🔄 Real-time Progress Tracking: Step-by-step execution monitoring with live status updates
+  - 💻 Terminal Output Streaming: Live terminal with syntax highlighting, filtering, and auto-scroll
+  - 🔒 JWT Authentication: Secure WebSocket connections with token validation
+  - 📊 Progress Visualization: Real-time progress bars and status indicators
+  - ⚡ Execution Control: Start/pause/resume/cancel operations via WebSocket
+  - 🔄 Auto-Reconnection: Robust WebSocket reconnection with exponential backoff
+  - 📱 Responsive UI: Mobile-friendly execution monitoring interface
+
+  🔧 Architecture Highlights
+
+  The system follows a microservice bridge pattern with:
+  - Real-time WebSocket streaming for execution updates
+  - Server-Sent Events protocol for one-way terminal output
+  - JWT-based authentication with rate limiting by user tier
+  - MongoDB TTL indexes for automatic log cleanup
+  - Connection pooling and memory management
+
+  �� Ready to Test
+
+  I've created a comprehensive test script (test_execution_system.py) that verifies:
+  - Backend health and API endpoints
+  - WebSocket connection and authentication
+  - Real-time message streaming
+  - End-to-end execution workflow
+
+  The system is now ready for:
+  1. Local development testing with the mock execution simulator
+  2. Claude Code SDK integration (remaining task)
+  3. Production deployment with real AI agent execution

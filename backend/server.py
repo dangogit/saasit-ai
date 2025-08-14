@@ -17,7 +17,7 @@ from pymongo import IndexModel
 
 # Import app modules
 from app.config import settings
-from app.routers import auth, projects
+from app.routers import auth, projects, executions, websocket
 from app.middleware.auth import get_current_active_user, check_rate_limit
 from app.middleware.security import setup_security_middleware
 from app.middleware.oauth_cors import setup_oauth_cors_middleware
@@ -104,6 +104,33 @@ async def create_database_indexes(db):
         await db.status_checks.create_indexes(status_checks_indexes)
         logger.info("Created status_checks collection indexes")
         
+        # Executions collection indexes
+        executions_indexes = [
+            IndexModel([("user_id", 1), ("created_at", -1)], name="user_id_created_at_compound"),
+            IndexModel("user_id", name="executions_user_id_index"),
+            IndexModel("status", name="executions_status_index"),
+            IndexModel("created_at", name="executions_created_at_index"),
+            IndexModel("updated_at", name="executions_updated_at_index"),
+            IndexModel("workflow_id", sparse=True, name="workflow_id_sparse_index")
+        ]
+        
+        # Create executions indexes
+        await db.executions.create_indexes(executions_indexes)
+        logger.info("Created executions collection indexes")
+        
+        # Terminal outputs collection indexes
+        terminal_outputs_indexes = [
+            IndexModel([("execution_id", 1), ("timestamp", 1)], name="execution_id_timestamp_compound"),
+            IndexModel("execution_id", name="terminal_execution_id_index"),
+            IndexModel("step_id", sparse=True, name="terminal_step_id_sparse_index"),
+            IndexModel("timestamp", name="terminal_timestamp_index"),
+            IndexModel("type", name="terminal_type_index")
+        ]
+        
+        # Create terminal outputs indexes
+        await db.terminal_outputs.create_indexes(terminal_outputs_indexes)
+        logger.info("Created terminal_outputs collection indexes")
+        
         logger.info("All database indexes created successfully")
         
     except Exception as e:
@@ -132,6 +159,13 @@ async def lifespan(app: FastAPI):
             
             # Create indexes for optimized database queries
             await create_database_indexes(db)
+            
+            # Initialize execution service
+            from app.services.execution_service import ExecutionService
+            from app.routers.websocket import set_execution_service
+            execution_service = ExecutionService(db)
+            set_execution_service(execution_service)
+            app.state.execution_service = execution_service
             
             logger.info("Connected to MongoDB and created indexes")
     except Exception as e:
@@ -457,6 +491,10 @@ async def websocket_chat(websocket: WebSocket):
 # Include routers
 api_v1_router.include_router(auth.router)
 api_v1_router.include_router(projects.router)
+api_v1_router.include_router(executions.router)
+
+# Include WebSocket router at app level
+app.include_router(websocket.router)
 
 # Mount API versions
 app.include_router(api_v1_router)

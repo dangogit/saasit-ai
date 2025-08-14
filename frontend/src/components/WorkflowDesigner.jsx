@@ -209,7 +209,7 @@ const WorkflowDesigner = () => {
     setWorkflowName(template.name);
   }, [setCurrentWorkflow, isSignedIn]);
 
-  const handleExecuteWorkflow = () => {
+  const handleExecuteWorkflow = async () => {
     if (!isSignedIn) {
       setShowAuthPrompt('execute');
       return;
@@ -220,8 +220,87 @@ const WorkflowDesigner = () => {
       return;
     }
     
-    // Show coming soon modal instead of executing
-    setShowComingSoonModal(true);
+    try {
+      // Import the execution services
+      const { default: executionWebSocketService } = await import('../services/executionWebSocket');
+      const { 
+        startExecution, 
+        updateWebSocketState 
+      } = useWorkflowStore.getState();
+
+      // Create execution request
+      const executionRequest = {
+        workflow_name: workflowName,
+        workflow_data: {
+          nodes,
+          edges,
+          estimatedSteps: nodes.length * 2 // Rough estimate: setup + execution per agent
+        },
+        estimated_steps: nodes.length * 2,
+        metadata: {
+          created_at: new Date().toISOString(),
+          user_id: user?.id
+        }
+      };
+
+      // Start execution in store
+      startExecution({
+        workflowId: null, // Will be set by backend
+        estimatedSteps: nodes.length * 2,
+        agents: nodes.map(node => node.data)
+      });
+
+      // Get auth token (assuming it's stored in localStorage)
+      const token = localStorage.getItem('auth_token') || user?.sessionId;
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      // Create execution via API first
+      const apiResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/v1/executions/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(executionRequest)
+      });
+
+      if (!apiResponse.ok) {
+        throw new Error(`Failed to create execution: ${apiResponse.statusText}`);
+      }
+
+      const execution = await apiResponse.json();
+      console.log('Created execution:', execution);
+
+      // Connect to execution WebSocket
+      await executionWebSocketService.connect(token, execution.id);
+
+      // Send workflow execution request
+      executionWebSocketService.startExecution({
+        nodes,
+        edges,
+        name: workflowName
+      });
+
+      // Show execution panel
+      setShowExecution(true);
+      setShowLibrary(false);
+      setShowChat(false);
+
+      console.log('Execution started successfully');
+
+    } catch (error) {
+      console.error('Execution failed:', error);
+      const { updateExecutionStatus } = useWorkflowStore.getState();
+      updateExecutionStatus('failed');
+      
+      alert('Failed to start execution: ' + error.message);
+      
+      // Reset execution state
+      const { resetExecution } = useWorkflowStore.getState();
+      resetExecution();
+    }
   };
 
   const handleSaveWorkflow = () => {
@@ -558,11 +637,7 @@ const WorkflowDesigner = () => {
 
             {/* Panel Content */}
             {showExecution ? (
-              <ExecutionPanel 
-                steps={executionSteps}
-                isExecuting={isExecuting}
-                selectedAgents={nodes.map(node => node.data)}
-              />
+              <ExecutionPanel />
             ) : (
               <div className="flex-1 flex flex-col overflow-hidden">
                 <AgentLibrary 

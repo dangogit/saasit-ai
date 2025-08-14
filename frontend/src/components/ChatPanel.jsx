@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, AlertCircle } from 'lucide-react';
+import { useAuth } from '@clerk/clerk-react';
 import { chatMessages } from '../data/mock';
 import apiClient from '../services/api';
 import useWorkflowStore from '../lib/stores/workflowStore';
 
 const ChatPanel = ({ onAddAgent }) => {
+  const { getToken } = useAuth();
   const [messages, setMessages] = useState(chatMessages);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -30,6 +32,20 @@ const ChatPanel = ({ onAddAgent }) => {
     scrollToBottom();
   }, [messages]);
 
+  // Set auth token when component mounts
+  useEffect(() => {
+    const setAuthToken = async () => {
+      try {
+        const token = await getToken();
+        apiClient.setAuthToken(token);
+      } catch (error) {
+        console.error('Failed to get auth token:', error);
+      }
+    };
+    
+    setAuthToken();
+  }, [getToken]);
+
   // Initialize WebSocket connection for streaming
   useEffect(() => {
     if (useStreaming) {
@@ -45,7 +61,8 @@ const ChatPanel = ({ onAddAgent }) => {
 
   const initializeWebSocket = async () => {
     try {
-      wsClient.current = apiClient.connectWebSocket();
+      const token = await getToken();
+      wsClient.current = apiClient.connectWebSocket(token);
       
       wsClient.current.onMessage((data) => {
         handleWebSocketMessage(data);

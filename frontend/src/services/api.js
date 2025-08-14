@@ -13,13 +13,10 @@ class APIClient {
       },
     });
 
-    // Request interceptor for auth tokens (if needed in future)
+    // Request interceptor for auth tokens
     this.client.interceptors.request.use(
       (config) => {
-        const token = localStorage.getItem('auth_token');
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
-        }
+        // Token will be set by components using setAuthToken method
         return config;
       },
       (error) => Promise.reject(error)
@@ -30,13 +27,22 @@ class APIClient {
       (response) => response,
       (error) => {
         if (error.response?.status === 401) {
-          // Handle unauthorized access
-          localStorage.removeItem('auth_token');
-          window.location.href = '/login';
+          // Handle unauthorized access - don't redirect automatically
+          // Let the component handle auth errors
+          console.warn('Authentication required. Please sign in.');
         }
         return Promise.reject(error);
       }
     );
+  }
+
+  // Set authentication token
+  setAuthToken(token) {
+    if (token) {
+      this.client.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+      delete this.client.defaults.headers.common['Authorization'];
+    }
   }
 
   // Chat endpoints
@@ -68,8 +74,8 @@ class APIClient {
   }
 
   // WebSocket connection for streaming
-  connectWebSocket() {
-    return new WebSocketClient(`${WS_BASE_URL}/chat`);
+  connectWebSocket(token = null) {
+    return new WebSocketClient(`${WS_BASE_URL}/chat`, token);
   }
 
   handleError(error) {
@@ -87,8 +93,9 @@ class APIClient {
 }
 
 class WebSocketClient {
-  constructor(url) {
+  constructor(url, token = null) {
     this.url = url;
+    this.token = token;
     this.ws = null;
     this.messageHandlers = [];
     this.errorHandlers = [];
@@ -101,7 +108,9 @@ class WebSocketClient {
   connect() {
     return new Promise((resolve, reject) => {
       try {
-        this.ws = new WebSocket(this.url);
+        // Append token to WebSocket URL if available
+        const wsUrl = this.token ? `${this.url}?token=${encodeURIComponent(this.token)}` : this.url;
+        this.ws = new WebSocket(wsUrl);
 
         this.ws.onopen = () => {
           console.log('WebSocket connected');

@@ -22,6 +22,34 @@ const useWorkflowStore = create()(
       layoutMode: 'auto', // auto, manual
       currentLayoutType: 'hybrid', // sequential, parallel, hybrid, hierarchical
 
+      // Execution State
+      executionState: {
+        isExecuting: false,
+        executionId: null,
+        startTime: null,
+        endTime: null,
+        status: 'idle', // idle, starting, running, paused, completed, failed, cancelled
+        currentStep: null,
+        totalSteps: 0,
+        completedSteps: 0,
+        failedSteps: 0,
+        progress: 0, // Overall progress 0-100
+      },
+
+      // Execution Steps with enhanced data
+      executionSteps: [],
+
+      // Real-time terminal output
+      terminalOutput: [],
+      
+      // WebSocket connection state
+      wsConnection: {
+        isConnected: false,
+        connectionId: null,
+        lastHeartbeat: null,
+        reconnectAttempts: 0,
+      },
+
       // Actions
       setWorkflows: (workflows) =>
         set((state) => {
@@ -272,6 +300,131 @@ const useWorkflowStore = create()(
           state.conversationPhase = 'initial';
           state.projectContext = {};
           state.error = null;
+        }),
+
+      // Execution Actions
+      startExecution: (workflowData) =>
+        set((state) => {
+          state.executionState = {
+            isExecuting: true,
+            executionId: `exec_${Date.now()}`,
+            startTime: new Date().toISOString(),
+            endTime: null,
+            status: 'starting',
+            currentStep: null,
+            totalSteps: workflowData.estimatedSteps || 0,
+            completedSteps: 0,
+            failedSteps: 0,
+            progress: 0
+          };
+          state.executionSteps = [];
+          state.terminalOutput = [];
+        }),
+
+      updateExecutionStatus: (status, currentStep = null) =>
+        set((state) => {
+          state.executionState.status = status;
+          if (currentStep) {
+            state.executionState.currentStep = currentStep;
+          }
+          if (status === 'completed' || status === 'failed' || status === 'cancelled') {
+            state.executionState.isExecuting = false;
+            state.executionState.endTime = new Date().toISOString();
+          }
+        }),
+
+      addExecutionStep: (step) =>
+        set((state) => {
+          const existingStepIndex = state.executionSteps.findIndex(s => s.id === step.id);
+          if (existingStepIndex >= 0) {
+            // Update existing step
+            state.executionSteps[existingStepIndex] = { ...state.executionSteps[existingStepIndex], ...step };
+          } else {
+            // Add new step
+            state.executionSteps.push({
+              id: step.id,
+              name: step.name,
+              agent: step.agent,
+              status: step.status || 'pending',
+              startTime: step.startTime,
+              endTime: step.endTime,
+              duration: step.duration || '0s',
+              output: step.output || '',
+              errorMessage: step.errorMessage || null,
+              artifacts: step.artifacts || [],
+              progress: step.progress || 0
+            });
+          }
+          
+          // Update counters
+          const completed = state.executionSteps.filter(s => s.status === 'completed').length;
+          const failed = state.executionSteps.filter(s => s.status === 'failed').length;
+          state.executionState.completedSteps = completed;
+          state.executionState.failedSteps = failed;
+          
+          // Update overall progress
+          if (state.executionState.totalSteps > 0) {
+            state.executionState.progress = (completed / state.executionState.totalSteps) * 100;
+          }
+        }),
+
+      updateExecutionStep: (stepId, stepUpdate) =>
+        set((state) => {
+          const stepIndex = state.executionSteps.findIndex(s => s.id === stepId);
+          if (stepIndex >= 0) {
+            state.executionSteps[stepIndex] = { ...state.executionSteps[stepIndex], ...stepUpdate };
+            
+            // Update counters
+            const completed = state.executionSteps.filter(s => s.status === 'completed').length;
+            const failed = state.executionSteps.filter(s => s.status === 'failed').length;
+            state.executionState.completedSteps = completed;
+            state.executionState.failedSteps = failed;
+            
+            // Update overall progress
+            if (state.executionState.totalSteps > 0) {
+              state.executionState.progress = (completed / state.executionState.totalSteps) * 100;
+            }
+          }
+        }),
+
+      addTerminalOutput: (output) =>
+        set((state) => {
+          state.terminalOutput.push({
+            id: `output_${Date.now()}_${Math.random()}`,
+            timestamp: new Date().toISOString(),
+            type: output.type || 'stdout', // stdout, stderr, system, agent
+            content: output.content,
+            stepId: output.stepId || null,
+            agent: output.agent || null
+          });
+          
+          // Keep terminal output manageable (last 1000 entries)
+          if (state.terminalOutput.length > 1000) {
+            state.terminalOutput = state.terminalOutput.slice(-1000);
+          }
+        }),
+
+      updateWebSocketState: (wsState) =>
+        set((state) => {
+          state.wsConnection = { ...state.wsConnection, ...wsState };
+        }),
+
+      resetExecution: () =>
+        set((state) => {
+          state.executionState = {
+            isExecuting: false,
+            executionId: null,
+            startTime: null,
+            endTime: null,
+            status: 'idle',
+            currentStep: null,
+            totalSteps: 0,
+            completedSteps: 0,
+            failedSteps: 0,
+            progress: 0
+          };
+          state.executionSteps = [];
+          state.terminalOutput = [];
         }),
     }))
   )
