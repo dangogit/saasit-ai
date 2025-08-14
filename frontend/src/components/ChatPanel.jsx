@@ -10,7 +10,7 @@ const ChatPanel = ({ onAddAgent }) => {
   const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState(null);
-  const [useStreaming, setUseStreaming] = useState(true);
+  const [useStreaming, setUseStreaming] = useState(false);
   const messagesEndRef = useRef(null);
   const wsClient = useRef(null);
   

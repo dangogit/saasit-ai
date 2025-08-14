@@ -118,8 +118,9 @@ class WebSocketClient {
           }
         };
 
-        this.ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
+        this.ws.onerror = (event) => {
+          console.error('WebSocket error:', event);
+          const error = new Error('WebSocket connection failed');
           this.errorHandlers.forEach(handler => handler(error));
           reject(error);
         };
