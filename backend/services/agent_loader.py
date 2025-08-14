@@ -103,13 +103,142 @@ class AgentLoader:
         return summary
     
     def build_agent_context(self) -> str:
-        """Build a context string with all available agents for the system prompt"""
-        lines = ["AVAILABLE AGENTS BY CATEGORY:"]
+        """Build a comprehensive context string for the world-class architect system prompt"""
+        
+        # Agent library overview
+        agent_summary = self._build_agent_summary()
+        
+        # Industry patterns and knowledge
+        patterns_context = self._build_patterns_context()
+        
+        # Risk and compliance context
+        risk_context = self._build_risk_context()
+        
+        # Scale and performance context
+        scale_context = self._build_scale_context()
+        
+        return f"""{agent_summary}
+
+{patterns_context}
+
+{risk_context}
+
+{scale_context}"""
+
+    def _build_agent_summary(self) -> str:
+        """Build the agent library summary"""
+        lines = ["🧠 ELITE AI AGENT LIBRARY:\n"]
+        
+        category_descriptions = {
+            "engineering": "Full-stack development, DevOps automation, and technical implementation",
+            "design": "User experience, visual design, and design systems",
+            "marketing": "Growth hacking, content creation, and viral marketing strategies", 
+            "product": "Product strategy, user research, and market analysis",
+            "project-management": "Sprint planning, team coordination, and delivery optimization",
+            "studio-operations": "Business operations, analytics, and resource management",
+            "testing": "Quality assurance, performance testing, and reliability engineering",
+            "bonus": "Specialized tools and experimental capabilities"
+        }
         
         for category in self.get_categories():
             agents = self.get_agents_by_category(category)
             if agents:
                 agent_names = [agent['id'] for agent in agents]
-                lines.append(f"\n{category.upper()}: {', '.join(agent_names)}")
+                description = category_descriptions.get(category, "Specialized capabilities")
+                lines.append(f"📁 {category.upper()}: {description}")
+                lines.append(f"   Available agents: {', '.join(agent_names)}\n")
                 
         return '\n'.join(lines)
+
+    def _build_patterns_context(self) -> str:
+        """Build architectural patterns and anti-patterns context"""
+        return """🏗️ ARCHITECTURAL PATTERNS & ANTI-PATTERNS:
+
+PROVEN SUCCESS PATTERNS:
+• Netflix Microservices: Fault-tolerant distributed systems with circuit breakers
+• Stripe API Design: Developer-first, consistent, versioned REST APIs with webhooks
+• Airbnb Growth: A/B testing everything, data-driven product decisions
+• Uber Scale: Event-driven architecture with real-time processing
+• Shopify Modularity: Plugin architecture enabling rapid customization
+• Discord Performance: Elixir/Rust for low-latency real-time communication
+• GitHub Collaboration: Git-based workflows, pull request culture
+• Slack Integration: Webhook-heavy integration ecosystem
+
+COSTLY ANTI-PATTERNS TO AVOID:
+❌ Premature Microservices: Breaking monoliths too early (costs: complexity, debugging)
+❌ Framework Chasing: Adopting bleeding-edge tech without business justification
+❌ Technical Debt Accumulation: Shipping fast without refactoring plan
+❌ Single Points of Failure: Critical dependencies without redundancy
+❌ Data Silos: Teams owning data without cross-functional access
+❌ Feature Factory: Building features without measuring impact
+❌ Scale Assumptions: Optimizing for problems you don't have yet
+❌ Vendor Lock-in: Over-relying on proprietary cloud services
+
+ARCHITECTURE DECISION RECORDS:
+Document key decisions with context, alternatives considered, and trade-offs."""
+
+    def _build_risk_context(self) -> str:
+        """Build risk management and compliance context"""
+        return """🛡️ RISK MANAGEMENT & COMPLIANCE FRAMEWORK:
+
+SECURITY BY DESIGN:
+• Authentication: OAuth2/OIDC, JWT tokens, MFA for admin access
+• Authorization: RBAC with principle of least privilege
+• Data Protection: Encryption at rest/transit, PII tokenization
+• Infrastructure: VPCs, WAF, DDoS protection, vulnerability scanning
+• Monitoring: SIEM, intrusion detection, security incident response
+
+COMPLIANCE REQUIREMENTS:
+📋 GDPR (EU): Data minimization, consent management, right to deletion
+📋 CCPA (California): Consumer privacy rights, data transparency
+📋 HIPAA (Healthcare): PHI protection, business associate agreements
+📋 SOC2 (Enterprise): Security, availability, processing integrity
+📋 PCI DSS (Payments): Payment card data protection standards
+
+COMMON FAILURE MODES:
+⚠️ Database Overload: Poor query optimization, missing indexes
+⚠️ API Rate Limiting: Cascading failures without circuit breakers
+⚠️ Memory Leaks: Unbounded data structures, missing cleanup
+⚠️ Third-party Outages: External dependencies without fallbacks
+⚠️ Configuration Drift: Manual changes without version control
+⚠️ Data Loss: Backup failures, accidental deletions
+
+MITIGATION STRATEGIES:
+✅ Circuit Breakers: Fail fast, avoid cascade failures
+✅ Health Checks: Proactive monitoring, automated recovery
+✅ Graceful Degradation: Core features work when peripherals fail
+✅ Disaster Recovery: RTO/RPO targets, tested backup procedures
+✅ Chaos Engineering: Intentional failure testing (Netflix Chaos Monkey)"""
+
+    def _build_scale_context(self) -> str:
+        """Build scale and performance context"""
+        return """⚡ SCALE & PERFORMANCE GUIDELINES:
+
+SCALE THRESHOLDS:
+📈 0-1K users: Monolith + single database acceptable
+📈 1K-10K users: Add caching, CDN, basic monitoring
+📈 10K-100K users: Database read replicas, microservices for hot paths
+📈 100K-1M users: Distributed systems, event streaming, multi-region
+📈 1M+ users: Advanced caching, sharding, specialized databases
+
+PERFORMANCE BUDGETS:
+⚡ Page Load: <3s mobile, <1s desktop (Google Core Web Vitals)
+⚡ API Response: <200ms p95, <500ms p99
+⚡ Database Queries: <100ms typical, indexed properly
+⚡ Search Results: <1s for simple queries, <3s for complex
+⚡ Video Streaming: <2s startup time, adaptive bitrate
+
+TECHNOLOGY EVOLUTION PATH:
+🔄 Phase 1: Proven stack (React/Next.js, Node.js/Python, PostgreSQL)
+🔄 Phase 2: Specialization (Redis cache, Elasticsearch, queue systems)
+🔄 Phase 3: Distribution (Kubernetes, service mesh, event streaming)
+🔄 Phase 4: Optimization (custom protocols, edge computing, ML/AI)
+
+TEAM SCALING LAWS:
+👥 1-3 developers: Full-stack generalists, shared responsibilities
+👥 4-8 developers: Specialization begins, dedicated DevOps
+👥 9-15 developers: Multiple teams, API contracts, shared infrastructure
+👥 16+ developers: Platform teams, developer experience focus
+
+DATABASE SCALING STRATEGY:
+💾 Read Replicas → Connection Pooling → Query Optimization → Caching → Sharding → Multi-DB"""
