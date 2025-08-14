@@ -21,6 +21,8 @@ import ChatPanel from './ChatPanel';
 import ExecutionPanel from './ExecutionPanel';
 import ComingSoonModal from './ComingSoonModal';
 import ExportLocationModal from './ExportLocationModal';
+import GitHubConnector from './GitHubConnector';
+import ExecutionModeSelector from './ExecutionModeSelector';
 import useWorkflowStore from '../lib/stores/workflowStore';
 import { agents, workflowTemplates, executionSteps } from '../data/mock';
 import { exportWorkflowWithFiles, isFileSystemAccessSupported } from '../lib/exportUtils';
@@ -38,6 +40,9 @@ const WorkflowDesigner = () => {
   const [showExportLocationModal, setShowExportLocationModal] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [showAuthPrompt, setShowAuthPrompt] = useState(null); // For feature-specific auth prompts
+  const [selectedRepo, setSelectedRepo] = useState(null);
+  const [githubToken, setGithubToken] = useState(null);
+  const [showExecutionModes, setShowExecutionModes] = useState(false);
   
   const { isSignedIn, user } = useUser();
 
