@@ -88,6 +88,10 @@ class Settings(BaseSettings):
         "fly.dev"  # Allow all Fly.io subdomains
     ]
     
+    # Clerk Authentication Configuration
+    clerk_domain: Optional[str] = None  # e.g., "growing-firefly-99" 
+    clerk_publishable_key: Optional[str] = None  # Full publishable key for fallback
+    
     # Anthropic
     anthropic_api_key: Optional[str] = None
     
@@ -163,6 +167,22 @@ class Settings(BaseSettings):
         oauth_hosts_env = os.getenv("OAUTH_ALLOWED_REDIRECT_HOSTS")
         if oauth_hosts_env:
             self.oauth_allowed_redirect_hosts = [host.strip() for host in oauth_hosts_env.split(",")]
+        
+        # Auto-extract Clerk domain from publishable key if not explicitly set
+        if not self.clerk_domain and self.clerk_publishable_key:
+            # Clerk publishable keys are base64 encoded and contain domain info
+            import base64
+            try:
+                # Decode the publishable key to extract domain
+                decoded = base64.b64decode(self.clerk_publishable_key + '==')
+                # The domain is typically in the decoded payload
+                domain_part = decoded.decode('utf-8', errors='ignore')
+                # Extract domain pattern like "growing-firefly-99"
+                if '.clerk.accounts.dev' in domain_part:
+                    self.clerk_domain = domain_part.split('.clerk.accounts.dev')[0].split('/')[-1]
+            except:
+                # Fallback: extract from environment or use default
+                pass
     
     class Config:
         env_file = ".env"

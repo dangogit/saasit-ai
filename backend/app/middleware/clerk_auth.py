@@ -1,6 +1,7 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
+import os
 import logging
 import httpx
 import json
@@ -8,6 +9,7 @@ from datetime import datetime, timezone, timedelta
 from jose import jwt, JWTError
 
 from app.models.user import TokenData
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 security = HTTPBearer(auto_error=False)
@@ -25,11 +27,23 @@ class ClerkAuth:
             return self.jwks_cache
             
         try:
-            # Clerk JWKS endpoint (this is usually public)
+            # Get Clerk domain from configuration
+            clerk_domain = settings.clerk_domain
+            if not clerk_domain:
+                # Fallback to hardcoded domain or environment variable
+                clerk_domain = os.getenv("CLERK_DOMAIN", "growing-firefly-99")
+                logger.warning(f"Using fallback Clerk domain: {clerk_domain}")
+            
+            jwks_url = f"https://{clerk_domain}.clerk.accounts.dev/.well-known/jwks.json"
+            logger.info(f"Fetching Clerk JWKS from: {jwks_url}")
+            
+            # Clerk JWKS endpoint
             async with httpx.AsyncClient() as client:
-                response = await client.get("https://growing-firefly-99.clerk.accounts.dev/.well-known/jwks.json")
+                response = await client.get(jwks_url)
                 response.raise_for_status()
                 jwks = response.json()
+                
+                logger.info(f"Successfully fetched {len(jwks.get('keys', []))} keys from Clerk JWKS")
                 
                 # Cache for 1 hour
                 self.jwks_cache = jwks
@@ -37,7 +51,7 @@ class ClerkAuth:
                 
                 return jwks
         except Exception as e:
-            logger.error(f"Failed to fetch Clerk JWKS: {e}")
+            logger.error(f"Failed to fetch Clerk JWKS from {jwks_url}: {e}")
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Authentication service unavailable"
@@ -49,12 +63,20 @@ class ClerkAuth:
             # First, decode the token header to get the key ID
             unverified_header = jwt.get_unverified_header(token)
             kid = unverified_header.get('kid')
+            alg = unverified_header.get('alg')
+            
+            logger.info(f"Token verification: kid={kid}, alg={alg}")
             
             if not kid:
                 raise JWTError("Token missing key ID")
             
             # Get the JWKS from Clerk
             jwks = await self.get_clerk_jwks()
+            
+            # Log available key IDs for debugging
+            available_kids = [key.get('kid') for key in jwks.get('keys', [])]
+            logger.info(f"Available key IDs: {available_kids}")
+            logger.info(f"Looking for key ID: {kid}")
             
             # Find the matching public key
             public_key = None
@@ -64,6 +86,7 @@ class ClerkAuth:
                     break
             
             if not public_key:
+                logger.error(f"Unable to find matching public key for kid={kid}. Available kids: {available_kids}")
                 raise JWTError("Unable to find matching public key")
             
             # Convert JWK to PEM format for verification
