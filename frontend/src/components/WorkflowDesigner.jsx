@@ -24,8 +24,7 @@ import ExportLocationModal from './ExportLocationModal';
 import useWorkflowStore from '../lib/stores/workflowStore';
 import { agents, workflowTemplates, executionSteps } from '../data/mock';
 import { exportWorkflowWithFiles, isFileSystemAccessSupported } from '../lib/exportUtils';
-import useAuth from '../hooks/useAuth';
-import AuthModal from './ui/auth-modal';
+import { useUser, SignInButton } from '@clerk/clerk-react';
 
 const WorkflowDesigner = () => {
   const navigate = useNavigate();
@@ -40,7 +39,7 @@ const WorkflowDesigner = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [showAuthPrompt, setShowAuthPrompt] = useState(null); // For feature-specific auth prompts
   
-  const { isAuthenticated, openLoginModal, user } = useAuth();
+  const { isSignedIn, user } = useUser();
 
   const {
     nodes,
@@ -194,7 +193,7 @@ const WorkflowDesigner = () => {
   };
   
   const handleLoadTemplate = useCallback((template) => {
-    if (!isAuthenticated) {
+    if (!isSignedIn) {
       setShowAuthPrompt('template');
       return;
     }
@@ -208,10 +207,10 @@ const WorkflowDesigner = () => {
       edges: templateEdges
     });
     setWorkflowName(template.name);
-  }, [setCurrentWorkflow, isAuthenticated]);
+  }, [setCurrentWorkflow, isSignedIn]);
 
   const handleExecuteWorkflow = () => {
-    if (!isAuthenticated) {
+    if (!isSignedIn) {
       setShowAuthPrompt('execute');
       return;
     }
@@ -226,7 +225,7 @@ const WorkflowDesigner = () => {
   };
 
   const handleSaveWorkflow = () => {
-    if (!isAuthenticated) {
+    if (!isSignedIn) {
       setShowAuthPrompt('save');
       return;
     }
@@ -252,7 +251,7 @@ const WorkflowDesigner = () => {
   };
 
   const handleExportWorkflow = () => {
-    if (!isAuthenticated) {
+    if (!isSignedIn) {
       setShowAuthPrompt('export');
       return;
     }
@@ -311,33 +310,33 @@ const WorkflowDesigner = () => {
             <input
               type="text"
               value={workflowName}
-              onChange={(e) => isAuthenticated ? setWorkflowName(e.target.value) : setShowAuthPrompt('edit')}
-              onFocus={() => !isAuthenticated && setShowAuthPrompt('edit')}
-              className={`font-medium bg-transparent border-none outline-none text-lg max-w-xs ${!isAuthenticated ? 'cursor-pointer' : 'cursor-text'}`}
+              onChange={(e) => isSignedIn ? setWorkflowName(e.target.value) : setShowAuthPrompt('edit')}
+              onFocus={() => !isSignedIn && setShowAuthPrompt('edit')}
+              className={`font-medium bg-transparent border-none outline-none text-lg max-w-xs ${!isSignedIn ? 'cursor-pointer' : 'cursor-text'}`}
               style={{ color: 'var(--text-primary)' }}
-              readOnly={!isAuthenticated}
-              title={!isAuthenticated ? 'Sign in to edit workflow name' : ''}
+              readOnly={!isSignedIn}
+              title={!isSignedIn ? 'Sign in to edit workflow name' : ''}
             />
-            {!isAuthenticated && <Lock size={14} className="opacity-50" />}
+            {!isSignedIn && <Lock size={14} className="opacity-50" />}
           </div>
         </div>
         
         <div className="flex items-center gap-3">
           <button 
             onClick={handleSaveWorkflow}
-            className={`btn-secondary ${!isAuthenticated ? 'relative' : ''}`}
-            title={!isAuthenticated ? 'Sign in to save workflows' : ''}
+            className={`btn-secondary ${!isSignedIn ? 'relative' : ''}`}
+            title={!isSignedIn ? 'Sign in to save workflows' : ''}
           >
             <Save size={16} className="mr-2" />
             Save
-            {!isAuthenticated && <Lock size={12} className="ml-1 opacity-60" />}
+            {!isSignedIn && <Lock size={12} className="ml-1 opacity-60" />}
           </button>
           
           <button 
             onClick={handleExportWorkflow}
             disabled={isExporting || nodes.length === 0}
-            className={`btn-secondary disabled:opacity-50 disabled:cursor-not-allowed ${!isAuthenticated ? 'relative' : ''}`}
-            title={!isAuthenticated ? 'Sign in to export workflows' : (isFileSystemAccessSupported() ? 'Export with agent files' : 'Export config only (use Chrome/Edge for full export)')}
+            className={`btn-secondary disabled:opacity-50 disabled:cursor-not-allowed ${!isSignedIn ? 'relative' : ''}`}
+            title={!isSignedIn ? 'Sign in to export workflows' : (isFileSystemAccessSupported() ? 'Export with agent files' : 'Export config only (use Chrome/Edge for full export)')}
           >
             {isExporting ? (
               <Loader size={16} className="mr-2 animate-spin" />
@@ -345,14 +344,14 @@ const WorkflowDesigner = () => {
               <Download size={16} className="mr-2" />
             )}
             {isExporting ? 'Exporting...' : 'Export'}
-            {!isAuthenticated && <Lock size={12} className="ml-1 opacity-60" />}
+            {!isSignedIn && <Lock size={12} className="ml-1 opacity-60" />}
           </button>
           
           <button 
             onClick={handleExecuteWorkflow}
-            className={`btn-primary ${!isAuthenticated ? 'relative' : ''}`}
+            className={`btn-primary ${!isSignedIn ? 'relative' : ''}`}
             disabled={isExecuting || nodes.length === 0}
-            title={!isAuthenticated ? 'Sign in to run workflows in the cloud' : ''}
+            title={!isSignedIn ? 'Sign in to run workflows in the cloud' : ''}
           >
             {isExecuting ? (
               <Loader size={16} className="mr-2 animate-spin" />
@@ -360,7 +359,7 @@ const WorkflowDesigner = () => {
               <Play size={16} className="mr-2" />
             )}
             {isExecuting ? 'Running...' : 'Run in Cloud'}
-            {!isAuthenticated && <Lock size={12} className="ml-1 opacity-60" />}
+            {!isSignedIn && <Lock size={12} className="ml-1 opacity-60" />}
           </button>
           
           {/* Library Button - separate from Run button */}
@@ -388,7 +387,7 @@ const WorkflowDesigner = () => {
                  style={{ borderColor: 'var(--border-light)', background: 'var(--bg-card)' }}>
               <div className="flex items-center gap-2">
                 <h3 className="font-mono font-medium text-sm uppercase tracking-wider">AI Assistant</h3>
-                {!isAuthenticated && <Lock size={12} className="opacity-60" />}
+                {!isSignedIn && <Lock size={12} className="opacity-60" />}
               </div>
               <button 
                 onClick={() => setShowChat(false)}
@@ -397,7 +396,7 @@ const WorkflowDesigner = () => {
                 <X size={16} />
               </button>
             </div>
-            {isAuthenticated ? (
+            {isSignedIn ? (
               <ChatPanel />
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
@@ -423,18 +422,18 @@ const WorkflowDesigner = () => {
           {!showChat && (
             <button
               onClick={() => setShowChat(true)}
-              className={`absolute top-4 left-4 z-10 btn-secondary fade-in-up ${!isAuthenticated ? 'relative' : ''}`}
-              title={!isAuthenticated ? 'Sign in to use AI assistant' : ''}
+              className={`absolute top-4 left-4 z-10 btn-secondary fade-in-up ${!isSignedIn ? 'relative' : ''}`}
+              title={!isSignedIn ? 'Sign in to use AI assistant' : ''}
             >
               <MessageSquare size={16} className="mr-2" />
               Chat
-              {!isAuthenticated && <Lock size={12} className="ml-1 opacity-60" />}
+              {!isSignedIn && <Lock size={12} className="ml-1 opacity-60" />}
             </button>
           )}
           
           <WorkflowCanvas 
             isExecuting={isExecuting} 
-            isAuthenticated={isAuthenticated}
+            isAuthenticated={isSignedIn}
             onAuthRequired={(feature) => setShowAuthPrompt(feature)}
           />
           
@@ -442,110 +441,47 @@ const WorkflowDesigner = () => {
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="text-center max-w-2xl p-8 fade-in-up">
                 <div className="mb-8">
-                  <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-6 float-animation shadow-lg">
-                    <Plus size={36} className="text-blue-600" />
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                    <Plus size={28} className="text-blue-600" />
                   </div>
                 </div>
-                <h3 className="heading-1 mb-8 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Build Your AI Team</h3>
+                <h3 className="text-2xl font-bold mb-6 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Build Your AI Team</h3>
                 
-                {!isAuthenticated && (
-                  <div className="bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-2xl p-6 mb-8 pointer-events-auto">
-                    <div className="flex items-center justify-center gap-2 mb-4">
-                      <Shield size={20} className="text-orange-600" />
-                      <span className="font-semibold text-orange-800">Premium Features</span>
-                    </div>
-                    <p className="text-sm text-orange-700 mb-4">
-                      Sign up to unlock workflow creation, AI chat, cloud execution, and more premium features.
-                    </p>
-                    <button 
-                      onClick={() => openLoginModal()}
-                      className="btn-primary text-sm px-6 py-2 bg-orange-600 hover:bg-orange-700"
-                    >
-                      <Star size={14} className="mr-2" />
-                      Get Full Access
-                    </button>
-                  </div>
-                )}
                 
                 {/* Interactive Guide */}
-                <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 rounded-3xl p-8 mb-8 border border-blue-200 shadow-xl backdrop-blur-sm">
-                  <div className="flex items-center justify-center mb-6">
-                    <div className="flex items-center gap-3">
-                      <div className="w-4 h-4 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full animate-pulse shadow-lg"></div>
-                      <span className="text-base text-blue-800 font-semibold">
-                        {isAuthenticated ? 'Choose your approach' : 'Explore the platform'}
-                      </span>
-                    </div>
+                <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-6 mb-6 border border-blue-200 shadow-lg">
+                  <div className="flex items-center justify-center mb-4">
+                    <span className="text-sm text-blue-800 font-medium">
+                      Get started
+                    </span>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 max-w-lg mx-auto">
                     <button
-                      onClick={() => {
-                        if (isAuthenticated) {
-                          setShowChat(true);
-                        } else {
-                          setShowAuthPrompt('chat');
-                        }
-                      }}
-                      className={`group bg-white/90 hover:bg-white rounded-2xl p-6 border border-blue-300 hover:border-blue-400 transition-all pointer-events-auto hover:scale-105 hover:shadow-lg ${!isAuthenticated ? 'relative' : ''}`}
+                      onClick={() => setShowChat(true)}
+                      className="bg-white/90 hover:bg-white rounded-xl p-4 border border-blue-300 hover:border-blue-400 transition-all pointer-events-auto hover:shadow-lg"
                     >
-                      <div className="text-3xl mb-3 group-hover:scale-110 transition-transform">💬</div>
-                      <h4 className="font-bold text-base mb-2 text-gray-800 flex items-center gap-2">
+                      <div className="text-2xl mb-2">💬</div>
+                      <h4 className="font-semibold text-sm mb-1 text-gray-800">
                         Describe Your App
-                        {!isAuthenticated && <Lock size={14} className="opacity-60" />}
                       </h4>
-                      <p className="text-sm text-gray-600">
-                        {isAuthenticated ? 'Tell me what you want to build' : 'Sign in to chat with AI'}
+                      <p className="text-xs text-gray-600">
+                        Tell AI what you want to build
                       </p>
                     </button>
                     
                     <button
                       onClick={() => setShowLibrary(true)}
-                      className="group bg-white/90 hover:bg-white rounded-2xl p-6 border border-purple-300 hover:border-purple-400 transition-all pointer-events-auto hover:scale-105 hover:shadow-lg"
+                      className="bg-white/90 hover:bg-white rounded-xl p-4 border border-purple-300 hover:border-purple-400 transition-all pointer-events-auto hover:shadow-lg"
                     >
-                      <div className="text-3xl mb-3 group-hover:scale-110 transition-transform">🤖</div>
-                      <h4 className="font-bold text-base mb-2 text-gray-800">Browse Agents</h4>
-                      <p className="text-sm text-gray-600">Explore 40+ specialists</p>
-                    </button>
-                    
-                    <button
-                      onClick={() => {
-                        setShowLibrary(true);
-                        setActiveTab('templates');
-                      }}
-                      className="group bg-white/90 hover:bg-white rounded-2xl p-6 border border-green-300 hover:border-green-400 transition-all pointer-events-auto hover:scale-105 hover:shadow-lg"
-                    >
-                      <div className="text-3xl mb-3 group-hover:scale-110 transition-transform">⚡</div>
-                      <h4 className="font-bold text-base mb-2 text-gray-800">View Templates</h4>
-                      <p className="text-sm text-gray-600">See proven team setups</p>
+                      <div className="text-2xl mb-2">🤖</div>
+                      <h4 className="font-semibold text-sm mb-1 text-gray-800">Browse Agents</h4>
+                      <p className="text-xs text-gray-600">40+ specialists available</p>
                     </button>
                   </div>
                   
-                  <div className="text-center">
-                    <p className="text-sm text-gray-600 font-medium">
-                      {isAuthenticated 
-                        ? '💡 Start with any approach - build and iterate as you go'
-                        : '💡 Sign up to start building workflows and deploy real applications'
-                      }
-                    </p>
-                  </div>
                 </div>
                 
-                {/* Quick Stats */}
-                <div className="flex justify-center gap-8 text-sm">
-                  <div className="flex items-center gap-2 bg-white/60 rounded-full px-4 py-2 backdrop-blur-sm border border-gray-200">
-                    <span className="text-lg">✨</span>
-                    <span className="font-medium text-gray-700">40+ Agents</span>
-                  </div>
-                  <div className="flex items-center gap-2 bg-white/60 rounded-full px-4 py-2 backdrop-blur-sm border border-gray-200">
-                    <span className="text-lg">🚀</span>
-                    <span className="font-medium text-gray-700">Ready Templates</span>
-                  </div>
-                  <div className="flex items-center gap-2 bg-white/60 rounded-full px-4 py-2 backdrop-blur-sm border border-gray-200">
-                    <span className="text-lg">⚡</span>
-                    <span className="font-medium text-gray-700">Instant Deploy</span>
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -633,7 +569,7 @@ const WorkflowDesigner = () => {
                   activeTab={activeTab}
                   templates={workflowTemplates}
                   onLoadTemplate={handleLoadTemplate}
-                  isAuthenticated={isAuthenticated}
+                  isAuthenticated={isSignedIn}
                   onAuthRequired={(feature) => setShowAuthPrompt(feature)}
                 />
               </div>
@@ -686,8 +622,6 @@ const WorkflowDesigner = () => {
         onSelectLocation={handleExportWithLocation}
       />
       
-      {/* Auth Modal */}
-      <AuthModal />
       
       {/* Feature-specific Auth Prompt Modal */}
       {showAuthPrompt && (
@@ -749,16 +683,12 @@ const WorkflowDesigner = () => {
               </div>
               
               <div className="space-y-3">
-                <button 
-                  onClick={() => {
-                    setShowAuthPrompt(null);
-                    openLoginModal();
-                  }}
-                  className="w-full btn-primary flex items-center justify-center gap-2"
-                >
-                  <Star size={16} />
-                  Sign Up for Full Access
-                </button>
+                <SignInButton mode="modal" afterSignInUrl="/app">
+                  <button className="w-full btn-primary flex items-center justify-center gap-2">
+                    <Star size={16} />
+                    Sign Up for Full Access
+                  </button>
+                </SignInButton>
                 
                 <p className="text-xs text-center text-gray-500">
                   Join thousands of developers using SaasIt.ai
