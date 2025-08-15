@@ -1,14 +1,39 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Search, Plus, Filter, Grid, List, Clock, Users, Grip, Lock, Shield } from 'lucide-react';
 import { agents, agentCategories } from '../data/mock';
 import useWorkflowStore from '../lib/stores/workflowStore';
+import { useResizablePanel, ResizeHandle } from '../hooks/useResizablePanel';
 
 const AgentLibrary = ({ activeTab, templates, onLoadTemplate, isAuthenticated, onAuthRequired }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [viewMode, setViewMode] = useState('list'); // Changed default to list for more compact view
 
-  const { nodes } = useWorkflowStore();
+  const { 
+    nodes,
+    panelLayout,
+    setPanelWidth
+  } = useWorkflowStore();
+
+  // Get agent library panel configuration from store
+  const libraryPanelConfig = panelLayout.agentLibrary;
+  
+  // Initialize resizable panel hook
+  const {
+    width: panelWidth,
+    isResizing,
+    handleMouseDown
+  } = useResizablePanel(
+    libraryPanelConfig.width,
+    libraryPanelConfig.minWidth,
+    libraryPanelConfig.maxWidth,
+    libraryPanelConfig.storageKey
+  );
+
+  // Sync panel width with store
+  useEffect(() => {
+    setPanelWidth('agentLibrary', panelWidth);
+  }, [panelWidth, setPanelWidth]);
 
   const filteredAgents = useMemo(() => {
     let filtered = agents;
@@ -204,7 +229,16 @@ const AgentLibrary = ({ activeTab, templates, onLoadTemplate, isAuthenticated, o
 
   if (activeTab === 'templates') {
     return (
-      <div className="flex-1 flex flex-col min-h-0">
+      <div 
+        className={`flex flex-col min-h-0 relative transition-all duration-300 ease-in-out ${
+          isResizing ? 'select-none' : ''
+        }`}
+        style={{ 
+          width: `${panelWidth}px`,
+          minWidth: `${libraryPanelConfig.minWidth}px`,
+          maxWidth: `${libraryPanelConfig.maxWidth}px`
+        }}
+      >
         <div className="flex-shrink-0 p-4 border-b" style={{ borderColor: 'var(--border-light)' }}>
           <h3 className="font-medium mb-3">Workflow Templates</h3>
           <p className="text-sm opacity-70">
@@ -219,12 +253,28 @@ const AgentLibrary = ({ activeTab, templates, onLoadTemplate, isAuthenticated, o
             ))}
           </div>
         </div>
+
+        {/* Resize Handle */}
+        <ResizeHandle 
+          onMouseDown={handleMouseDown}
+          orientation="vertical"
+          className="hover:bg-blue-500/20 -left-1"
+        />
       </div>
     );
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div 
+      className={`flex flex-col min-h-0 relative transition-all duration-300 ease-in-out ${
+        isResizing ? 'select-none' : ''
+      }`}
+      style={{ 
+        width: `${panelWidth}px`,
+        minWidth: `${libraryPanelConfig.minWidth}px`,
+        maxWidth: `${libraryPanelConfig.maxWidth}px`
+      }}
+    >
       {/* Header */}
       <div className="flex-shrink-0 p-3 border-b" style={{ borderColor: 'var(--border-light)' }}>
         <div className="flex items-center justify-between mb-2">
@@ -342,6 +392,13 @@ const AgentLibrary = ({ activeTab, templates, onLoadTemplate, isAuthenticated, o
           </>
         )}
       </div>
+
+      {/* Resize Handle */}
+      <ResizeHandle 
+        onMouseDown={handleMouseDown}
+        orientation="vertical"
+        className="hover:bg-blue-500/20 -left-1"
+      />
     </div>
   );
 };

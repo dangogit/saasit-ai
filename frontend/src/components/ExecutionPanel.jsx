@@ -6,11 +6,115 @@ import {
 } from 'lucide-react';
 import useWorkflowStore from '../lib/stores/workflowStore';
 
+// Speed Indicator Component
+const SpeedIndicator = ({ executionState }) => {
+  const getExecutionSpeed = () => {
+    if (!executionState.startTime || executionState.completedSteps === 0) {
+      return 'normal';
+    }
+    
+    const elapsed = (new Date() - new Date(executionState.startTime)) / 1000 / 60; // minutes
+    const stepsPerMinute = executionState.completedSteps / elapsed;
+    
+    if (stepsPerMinute > 2) return 'fast';
+    if (stepsPerMinute > 0.5) return 'normal';
+    return 'slow';
+  };
+  
+  const speed = getExecutionSpeed();
+  const speedConfig = {
+    fast: { color: 'text-green-600', bars: 3, animation: 'animate-pulse' },
+    normal: { color: 'text-yellow-600', bars: 2, animation: '' },
+    slow: { color: 'text-red-600', bars: 1, animation: 'animate-pulse' }
+  };
+  
+  const config = speedConfig[speed];
+  
+  return (
+    <div className="flex items-center gap-0.5">
+      {[...Array(3)].map((_, i) => (
+        <div
+          key={i}
+          className={`w-1 h-3 rounded-full transition-all duration-300 ${
+            i < config.bars 
+              ? `bg-current ${config.color} ${config.animation}`
+              : 'bg-gray-300'
+          }`}
+          style={{ height: `${(i + 1) * 4 + 4}px` }}
+        />
+      ))}
+    </div>
+  );
+};
+
+// Helper functions
+const calculateETA = (executionState) => {
+  if (!executionState.startTime || executionState.completedSteps === 0) {
+    return '--:--';
+  }
+  
+  const elapsed = (new Date() - new Date(executionState.startTime)) / 1000; // seconds
+  const avgTimePerStep = elapsed / executionState.completedSteps;
+  const remainingSteps = executionState.totalSteps - executionState.completedSteps;
+  const etaSeconds = avgTimePerStep * remainingSteps;
+  
+  if (etaSeconds < 60) {
+    return `${Math.round(etaSeconds)}s`;
+  } else {
+    const minutes = Math.floor(etaSeconds / 60);
+    const seconds = Math.round(etaSeconds % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  }
+};
+
+const calculateAverageStepTime = (executionState) => {
+  if (!executionState.startTime || executionState.completedSteps === 0) {
+    return '--s';
+  }
+  
+  const elapsed = (new Date() - new Date(executionState.startTime)) / 1000; // seconds
+  const avgTime = elapsed / executionState.completedSteps;
+  
+  if (avgTime < 60) {
+    return `${Math.round(avgTime)}s`;
+  } else {
+    const minutes = Math.floor(avgTime / 60);
+    const seconds = Math.round(avgTime % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  }
+};
+
+const formatElapsedTime = (executionState) => {
+  if (!executionState.startTime) {
+    return '0:00';
+  }
+  
+  const elapsed = (new Date() - new Date(executionState.startTime)) / 1000; // seconds
+  const minutes = Math.floor(elapsed / 60);
+  const seconds = Math.round(elapsed % 60);
+  
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+};
+
 const ExecutionPanel = () => {
   const terminalRef = useRef(null);
   const [showTerminal, setShowTerminal] = useState(true);
   const [terminalFilter, setTerminalFilter] = useState('all'); // all, stdout, stderr, system
   const [autoScroll, setAutoScroll] = useState(true);
+
+  // Add CSS for progress animations
+  React.useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes progressShine {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(400%); }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => document.head.removeChild(style);
+  }, []);
 
   const {
     executionState,
@@ -111,19 +215,56 @@ const ExecutionPanel = () => {
           )}
         </div>
         
-        {/* Progress Bar */}
+        {/* Enhanced Progress Bar with Speed Indicator */}
         <div className="mb-3">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm">
               {executionState.completedSteps} of {executionState.totalSteps} steps completed
             </span>
-            <span className="text-sm font-mono">{Math.round(progress)}%</span>
+            <div className="flex items-center gap-3">
+              {/* Speed Indicator */}
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-gray-500">Speed:</span>
+                <SpeedIndicator executionState={executionState} />
+              </div>
+              <span className="text-sm font-mono">{Math.round(progress)}%</span>
+            </div>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          
+          {/* Multi-layer Progress Bar */}
+          <div className="relative w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+            {/* Background gradient */}
+            <div className="absolute inset-0 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200"></div>
+            
+            {/* Main progress */}
             <div 
-              className="bg-blue-500 h-2 rounded-full transition-all duration-500"
+              className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all duration-500"
               style={{ width: `${progress}%` }}
             />
+            
+            {/* Progress highlight */}
+            <div 
+              className="absolute top-0 left-0 h-1 bg-gradient-to-r from-white/40 to-transparent rounded-full transition-all duration-500"
+              style={{ width: `${progress}%` }}
+            />
+            
+            {/* Running step indicator */}
+            {executionState.isExecuting && (
+              <div className="absolute top-0 h-full w-8 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[progressShine_2s_ease-in-out_infinite]"
+                   style={{ left: `${Math.max(0, progress - 4)}%` }} />
+            )}
+          </div>
+          
+          {/* Progress metrics */}
+          <div className="flex items-center justify-between mt-2 text-xs text-gray-500">
+            <div className="flex items-center gap-2">
+              <span>ETA: {calculateETA(executionState)}</span>
+              <span>•</span>
+              <span>Avg: {calculateAverageStepTime(executionState)}/step</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span>{formatElapsedTime(executionState)}</span>
+            </div>
           </div>
         </div>
 

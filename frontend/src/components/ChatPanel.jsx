@@ -4,6 +4,7 @@ import { useAuth } from '@clerk/clerk-react';
 import { chatMessages } from '../data/mock';
 import apiClient from '../services/api';
 import useWorkflowStore from '../lib/stores/workflowStore';
+import { useResizablePanel, ResizeHandle } from '../hooks/useResizablePanel';
 
 const ChatPanel = ({ onAddAgent }) => {
   const { getToken, isSignedIn, isLoaded } = useAuth();
@@ -21,8 +22,37 @@ const ChatPanel = ({ onAddAgent }) => {
     setConversationPhase,
     generateWorkflowFromAI,
     addConversationMessage,
-    conversationPhase
+    conversationPhase,
+    panelLayout,
+    setPanelWidth,
+    expandChatPanel,
+    setQuestionQueue,
+    nextQuestion,
+    conversationState,
+    setWaitingForAnswer,
+    resetConversationFlow
   } = useWorkflowStore();
+
+  // Get chat panel configuration from store
+  const chatPanelConfig = panelLayout.chatPanel;
+  
+  // Initialize resizable panel hook
+  const {
+    width: panelWidth,
+    isResizing,
+    handleMouseDown,
+    setWidth: setPanelWidthAnimated
+  } = useResizablePanel(
+    chatPanelConfig.width,
+    chatPanelConfig.minWidth,
+    chatPanelConfig.maxWidth,
+    chatPanelConfig.storageKey
+  );
+
+  // Sync panel width with store
+  useEffect(() => {
+    setPanelWidth('chatPanel', panelWidth);
+  }, [panelWidth, setPanelWidth]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -153,6 +183,18 @@ const ChatPanel = ({ onAddAgent }) => {
     setIsTyping(true);
     setError(null);
 
+    // Auto-expand chat panel when user sends message
+    if (!chatPanelConfig.isExpanded) {
+      expandChatPanel();
+      setPanelWidthAnimated(chatPanelConfig.expandedWidth);
+    }
+
+    // If user is answering a question, update conversation state
+    if (conversationState.isWaitingForAnswer) {
+      setWaitingForAnswer(false);
+      nextQuestion(); // Advance to next question
+    }
+
     // Prepare conversation history
     const conversationHistory = messages
       .filter(msg => !msg.isStreaming)
@@ -218,6 +260,23 @@ const ChatPanel = ({ onAddAgent }) => {
       setConversationPhase(response.phase);
     }
     
+    // Handle sequential questioning flow
+    if (response.conversation_stage === 'questioning' && response.next_question) {
+      // Update conversation state for progress tracking
+      if (response.questions_remaining) {
+        const totalQuestions = 5; // Typical number of questions
+        const currentIndex = totalQuestions - response.questions_remaining;
+        
+        // Update store with question progress
+        setQuestionQueue([response.next_question]); // Single question at a time
+        // Update progress tracking
+        setWaitingForAnswer(true);
+      }
+    } else if (response.conversation_stage === 'designing') {
+      // Questions complete, moving to design phase
+      resetConversationFlow();
+    }
+    
     if (response.workflow && response.workflow.agents) {
       // Generate workflow on the canvas
       await generateWorkflowFromAI(response);
@@ -234,6 +293,7 @@ const ChatPanel = ({ onAddAgent }) => {
       }, 1000);
     }
     
+    // Legacy support for multiple questions (fallback)
     if (response.questions && response.questions.length > 0) {
       // Add clarifying questions as a follow-up message
       const questionsMessage = {
@@ -272,7 +332,16 @@ const ChatPanel = ({ onAddAgent }) => {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full">
+    <div 
+      className={`flex flex-col h-full relative transition-all duration-300 ease-in-out ${
+        isResizing ? 'select-none' : ''
+      }`}
+      style={{ 
+        width: `${panelWidth}px`,
+        minWidth: `${chatPanelConfig.minWidth}px`,
+        maxWidth: `${chatPanelConfig.maxWidth}px`
+      }}
+    >
       {/* Error Banner */}
       {error && (
         <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-sm flex items-center gap-2">
@@ -292,6 +361,51 @@ const ChatPanel = ({ onAddAgent }) => {
         <div className="px-4 py-2 text-xs text-gray-500 flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-gray-400'}`} />
           {isConnected ? 'Connected' : 'Connecting...'}
+        </div>
+      )}
+
+      {/* Question Progress Indicator */}
+      {conversationState.progressPhase === 'questioning' && conversationState.totalQuestions > 0 && (
+        <div className="px-4 py-3 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-blue-100">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-gray-700">Discovery Progress</span>
+            <span className="text-xs text-blue-600 font-mono">
+              {conversationState.currentQuestionIndex + 1} / {conversationState.totalQuestions}
+            </span>
+          </div>
+          
+          {/* Progress Bar */}
+          <div className="w-full bg-gray-200 rounded-full h-1.5 mb-2">
+            <div 
+              className="bg-gradient-to-r from-blue-500 to-purple-500 h-1.5 rounded-full transition-all duration-500 ease-out"
+              style={{ 
+                width: `${((conversationState.currentQuestionIndex + 1) / conversationState.totalQuestions) * 100}%` 
+              }}
+            />
+          </div>
+          
+          {/* Progress Dots */}
+          <div className="flex items-center justify-center gap-2">
+            {Array.from({ length: conversationState.totalQuestions }, (_, index) => (
+              <div
+                key={index}
+                className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                  index <= conversationState.currentQuestionIndex
+                    ? 'bg-blue-500 scale-110'
+                    : index === conversationState.currentQuestionIndex + 1
+                    ? 'bg-blue-300 scale-105 animate-pulse'
+                    : 'bg-gray-300'
+                }`}
+              />
+            ))}
+          </div>
+          
+          <div className="text-xs text-center text-gray-600 mt-2">
+            {conversationState.isWaitingForAnswer 
+              ? '💭 Waiting for your response...'
+              : '🤖 Preparing next question...'
+            }
+          </div>
         </div>
       )}
       
@@ -386,6 +500,13 @@ const ChatPanel = ({ onAddAgent }) => {
           Describe your app and I'll suggest the perfect AI team
         </p>
       </div>
+
+      {/* Resize Handle */}
+      <ResizeHandle 
+        onMouseDown={handleMouseDown}
+        orientation="vertical"
+        className="hover:bg-blue-500/20"
+      />
     </div>
   );
 };

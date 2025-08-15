@@ -30,6 +30,36 @@ import { useUser, SignInButton } from '@clerk/clerk-react';
 
 const WorkflowDesigner = () => {
   const navigate = useNavigate();
+  
+  // Add CSS for sparkle animation
+  React.useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes sparkle {
+        0%, 100% { 
+          opacity: 0; 
+          transform: scale(0) rotate(0deg); 
+        }
+        50% { 
+          opacity: 1; 
+          transform: scale(1) rotate(180deg); 
+        }
+      }
+      @keyframes scale-in {
+        0% { 
+          opacity: 0; 
+          transform: scale(0.9); 
+        }
+        100% { 
+          opacity: 1; 
+          transform: scale(1); 
+        }
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => document.head.removeChild(style);
+  }, []);
   const [isExecuting, setIsExecuting] = useState(false);
   const [showChat, setShowChat] = useState(true);
   const [showLibrary, setShowLibrary] = useState(true);
@@ -43,6 +73,8 @@ const WorkflowDesigner = () => {
   const [selectedRepo, setSelectedRepo] = useState(null);
   const [githubToken, setGithubToken] = useState(null);
   const [showExecutionModes, setShowExecutionModes] = useState(false);
+  const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
+  const [templateLoadingProgress, setTemplateLoadingProgress] = useState(0);
   
   const { isSignedIn, user } = useUser();
 
@@ -197,21 +229,73 @@ const WorkflowDesigner = () => {
     return { nodes, edges };
   };
   
-  const handleLoadTemplate = useCallback((template) => {
+  const handleLoadTemplate = useCallback(async (template) => {
     if (!isSignedIn) {
       setShowAuthPrompt('template');
       return;
     }
     
-    const { nodes: templateNodes, edges: templateEdges } = createHierarchicalLayout(template);
-    
-    setCurrentWorkflow({
-      id: `workflow-${Date.now()}`,
-      name: template.name,
-      nodes: templateNodes,
-      edges: templateEdges
-    });
-    setWorkflowName(template.name);
+    try {
+      setIsLoadingTemplate(true);
+      setTemplateLoadingProgress(0);
+      
+      // Simulate loading progress with realistic stages
+      const progressStages = [
+        { progress: 20, message: 'Analyzing template structure...', delay: 300 },
+        { progress: 50, message: 'Creating agent instances...', delay: 400 },
+        { progress: 80, message: 'Building connections...', delay: 350 },
+        { progress: 95, message: 'Applying layout...', delay: 250 },
+        { progress: 100, message: 'Template loaded!', delay: 200 }
+      ];
+      
+      // Animate progress
+      for (const stage of progressStages) {
+        await new Promise(resolve => setTimeout(resolve, stage.delay));
+        setTemplateLoadingProgress(stage.progress);
+      }
+      
+      // Generate template layout
+      const { nodes: templateNodes, edges: templateEdges } = createHierarchicalLayout(template);
+      
+      // Apply template with staggered node appearance
+      setCurrentWorkflow({
+        id: `workflow-${Date.now()}`,
+        name: template.name,
+        nodes: [], // Start with empty to trigger animations
+        edges: []
+      });
+      setWorkflowName(template.name);
+      
+      // Add nodes with staggered animation
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      for (let i = 0; i < templateNodes.length; i++) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        setCurrentWorkflow(prev => ({
+          ...prev,
+          nodes: [...prev.nodes, templateNodes[i]],
+          edges: i === templateNodes.length - 1 ? templateEdges : prev.edges
+        }));
+      }
+      
+      // Trigger zoom-to-fit after all nodes are placed
+      setTimeout(() => {
+        const reactFlowInstance = window.reactFlowInstance;
+        if (reactFlowInstance) {
+          reactFlowInstance.fitView({ 
+            padding: 0.2, 
+            duration: 1000,
+            includeHiddenNodes: false 
+          });
+        }
+      }, 500);
+      
+    } catch (error) {
+      console.error('Error loading template:', error);
+    } finally {
+      setIsLoadingTemplate(false);
+      setTemplateLoadingProgress(0);
+    }
   }, [setCurrentWorkflow, isSignedIn]);
 
   const handleExecuteWorkflow = async () => {
@@ -369,12 +453,66 @@ const WorkflowDesigner = () => {
   };
 
   const getTotalEstimatedTime = () => {
-    const totalHours = nodes.reduce((total, node) => {
-      const timeStr = node.data.estimatedTime || '0-0 hours';
-      const maxHours = parseInt(timeStr.split('-')[1] || timeStr.split(' ')[0]);
-      return total + maxHours;
+    if (nodes.length === 0) return '0 minutes';
+    
+    // Calculate realistic execution time based on agent complexity
+    const totalMinutes = nodes.reduce((total, node) => {
+      const agentComplexity = getAgentComplexity(node.data);
+      return total + agentComplexity;
     }, 0);
-    return totalHours;
+    
+    // Add base time for coordination and setup
+    const baseTime = Math.max(1, Math.floor(nodes.length * 0.5)); // 30 seconds per agent for coordination
+    const finalTime = totalMinutes + baseTime;
+    
+    // Format output
+    if (finalTime < 60) {
+      return `${Math.ceil(finalTime)} minutes`;
+    } else {
+      const hours = Math.floor(finalTime / 60);
+      const minutes = finalTime % 60;
+      return minutes > 0 ? `${hours}h ${Math.ceil(minutes)}m` : `${hours} hour${hours > 1 ? 's' : ''}`;
+    }
+  };
+
+  const getAgentComplexity = (agentData) => {
+    // Base time per agent type
+    const baseTime = {
+      'rapid-prototyper': 3,      // 3 minutes - quick prototyping
+      'frontend-developer': 5,    // 5 minutes - UI implementation
+      'backend-architect': 8,     // 8 minutes - API and database setup
+      'ai-engineer': 10,          // 10 minutes - ML model integration
+      'mobile-app-builder': 12,   // 12 minutes - native mobile features
+      'devops-automator': 6,      // 6 minutes - deployment automation
+      'test-writer-fixer': 4,     // 4 minutes - test suite creation
+      'ui-designer': 3,           // 3 minutes - design assets
+      'ux-researcher': 2,         // 2 minutes - user research insights
+      'performance-benchmarker': 5, // 5 minutes - performance analysis
+      'security-expert': 7,       // 7 minutes - security implementation
+      'data-analyst': 6,          // 6 minutes - data processing
+      'content-creator': 2,       // 2 minutes - content generation
+      'growth-hacker': 3,         // 3 minutes - growth strategy
+      'project-manager': 1,       // 1 minute - coordination
+    };
+    
+    // Get base time for this agent type
+    const agentId = agentData.id || '';
+    let estimatedTime = baseTime[agentId] || 5; // Default 5 minutes
+    
+    // Adjust based on role complexity
+    if (agentData.isManager) {
+      estimatedTime = Math.max(1, Math.floor(estimatedTime * 0.3)); // Managers coordinate, less execution
+    } else if (agentData.isLead) {
+      estimatedTime = Math.floor(estimatedTime * 0.7); // Leads have less hands-on work
+    }
+    
+    // Factor in capabilities complexity
+    const capabilities = agentData.capabilities || [];
+    if (capabilities.length > 5) {
+      estimatedTime += 2; // More complex agents take longer
+    }
+    
+    return Math.max(1, estimatedTime); // Minimum 1 minute per agent
   };
 
   return (
@@ -667,7 +805,7 @@ const WorkflowDesigner = () => {
             {nodes.length} agent{nodes.length !== 1 ? 's' : ''} selected
           </span>
           <span className="font-mono opacity-60">
-            Est. runtime: {getTotalEstimatedTime()} hours
+            Est. runtime: {getTotalEstimatedTime()}
           </span>
           <span className="font-mono opacity-60">
             {edges.length} connection{edges.length !== 1 ? 's' : ''}
@@ -702,6 +840,70 @@ const WorkflowDesigner = () => {
         onSelectLocation={handleExportWithLocation}
       />
       
+      
+      {/* Template Loading Overlay */}
+      {isLoadingTemplate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center"
+             style={{
+               background: 'rgba(255, 255, 255, 0.95)',
+               backdropFilter: 'blur(4px)',
+               WebkitBackdropFilter: 'blur(4px)'
+             }}>
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 text-center animate-scale-in"
+               style={{
+                 border: '1px solid var(--border-light)',
+               }}>
+            {/* Loading Animation */}
+            <div className="w-20 h-20 mx-auto mb-6 relative">
+              <div className="absolute inset-0 border-4 border-blue-100 rounded-full"></div>
+              <div className="absolute inset-0 border-4 border-blue-500 rounded-full border-t-transparent animate-spin"></div>
+              <div className="absolute inset-2 border-2 border-purple-300 rounded-full border-r-transparent animate-spin" style={{ animationDirection: 'reverse', animationDuration: '1.5s' }}></div>
+            </div>
+            
+            {/* Title */}
+            <h3 className="text-xl font-semibold mb-3 text-gray-800">
+              Loading Template
+            </h3>
+            
+            {/* Progress Bar */}
+            <div className="w-full bg-gray-200 rounded-full h-2 mb-4 overflow-hidden">
+              <div 
+                className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-300 ease-out"
+                style={{ width: `${templateLoadingProgress}%` }}
+              />
+            </div>
+            
+            {/* Progress Text */}
+            <div className="text-sm text-gray-600 mb-2">
+              {templateLoadingProgress}% Complete
+            </div>
+            
+            {/* Loading Message */}
+            <div className="text-xs text-gray-500">
+              {templateLoadingProgress <= 20 && 'Analyzing template structure...'}
+              {templateLoadingProgress > 20 && templateLoadingProgress <= 50 && 'Creating agent instances...'}
+              {templateLoadingProgress > 50 && templateLoadingProgress <= 80 && 'Building connections...'}
+              {templateLoadingProgress > 80 && templateLoadingProgress < 100 && 'Applying layout...'}
+              {templateLoadingProgress === 100 && 'Template loaded! ✨'}
+            </div>
+            
+            {/* Sparkle Animation */}
+            <div className="absolute inset-0 pointer-events-none">
+              {[...Array(8)].map((_, i) => (
+                <div
+                  key={i}
+                  className="absolute w-1 h-1 bg-yellow-400 rounded-full opacity-0 animate-[sparkle_2s_ease-in-out_infinite]"
+                  style={{
+                    left: `${20 + i * 10}%`,
+                    top: `${20 + (i % 3) * 20}%`,
+                    animationDelay: `${i * 250}ms`
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Feature-specific Auth Prompt Modal */}
       {showAuthPrompt && (

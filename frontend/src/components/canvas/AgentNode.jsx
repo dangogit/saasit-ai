@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useState, useEffect } from 'react';
 import { Handle, Position } from 'reactflow';
 import { X, Clock, CheckCircle, Loader, AlertCircle } from 'lucide-react';
 import useWorkflowStore from '../../lib/stores/workflowStore';
@@ -6,6 +6,41 @@ import useWorkflowStore from '../../lib/stores/workflowStore';
 const AgentNode = memo(({ data, selected, id }) => {
   const { removeNode, updateNode } = useWorkflowStore();
   const { role, isManager, isLead } = data;
+  
+  // Animation state
+  const [isNewNode, setIsNewNode] = useState(true);
+  const [animationStage, setAnimationStage] = useState('entering'); // entering, settling, idle
+  
+  // Handle entrance animation
+  useEffect(() => {
+    // Mark as new node for entrance animation
+    const timer1 = setTimeout(() => {
+      setAnimationStage('settling');
+    }, 100);
+    
+    const timer2 = setTimeout(() => {
+      setAnimationStage('idle');
+      setIsNewNode(false);
+    }, 800);
+    
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
+  }, []);
+
+  const getAnimationClasses = () => {
+    switch (animationStage) {
+      case 'entering':
+        return 'opacity-0 scale-50 translate-y-8 rotate-12';
+      case 'settling':
+        return 'opacity-100 scale-110 translate-y-0 rotate-2 transition-all duration-500 ease-out';
+      case 'idle':
+        return 'opacity-100 scale-100 translate-y-0 rotate-0 transition-all duration-300 ease-out';
+      default:
+        return '';
+    }
+  };
 
   const getStatusIcon = () => {
     switch (data.status) {
@@ -62,6 +97,47 @@ const AgentNode = memo(({ data, selected, id }) => {
 
   return (
     <>
+      {/* Animation keyframes */}
+      <style jsx>{`
+        @keyframes shine {
+          0% { transform: translateX(-100%) skewX(-12deg); }
+          100% { transform: translateX(200%) skewX(-12deg); }
+        }
+        
+        @keyframes particle {
+          0% { 
+            opacity: 0; 
+            transform: translateY(0) scale(0); 
+          }
+          50% { 
+            opacity: 1; 
+            transform: translateY(-20px) scale(1); 
+          }
+          100% { 
+            opacity: 0; 
+            transform: translateY(-40px) scale(0); 
+          }
+        }
+        
+        @keyframes agentBounceIn {
+          0% {
+            opacity: 0;
+            transform: scale(0.3) translateY(30px) rotate(15deg);
+          }
+          50% {
+            opacity: 0.8;
+            transform: scale(1.1) translateY(-5px) rotate(-5deg);
+          }
+          70% {
+            transform: scale(0.95) translateY(2px) rotate(2deg);
+          }
+          100% {
+            opacity: 1;
+            transform: scale(1) translateY(0) rotate(0deg);
+          }
+        }
+      `}</style>
+      
       {/* Input Handle */}
       <Handle
         type="target"
@@ -79,21 +155,52 @@ const AgentNode = memo(({ data, selected, id }) => {
         className={`
           voice-card ${data.color} group
           min-w-[260px] max-w-[300px]
-          transition-all duration-200
           cursor-move
           relative
           hover:shadow-xl hover:scale-[1.02]
           ${getStatusStyles()}
+          ${getAnimationClasses()}
+          ${isNewNode ? 'will-change-transform' : ''}
         `}
+        style={{
+          transformOrigin: 'center center',
+        }}
       >
+        {/* Entrance shine effect */}
+        {isNewNode && animationStage === 'settling' && (
+          <div className="absolute inset-0 rounded-lg overflow-hidden pointer-events-none">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white to-transparent opacity-30 transform -skew-x-12 translate-x-[-100%] animate-[shine_0.8s_ease-out_forwards]" />
+          </div>
+        )}
+
+        {/* Entrance particles effect */}
+        {isNewNode && animationStage === 'settling' && (
+          <div className="absolute inset-0 pointer-events-none">
+            {[...Array(6)].map((_, i) => (
+              <div
+                key={i}
+                className="absolute w-1 h-1 bg-blue-400 rounded-full opacity-0 animate-[particle_0.6s_ease-out_forwards]"
+                style={{
+                  left: `${20 + i * 10}%`,
+                  top: `${30 + (i % 2) * 20}%`,
+                  animationDelay: `${i * 100}ms`
+                }}
+              />
+            ))}
+          </div>
+        )}
+
         {/* Role Badge */}
         {getRoleIcon() && (
           <div 
-            className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs z-20"
+            className={`absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs z-20 transition-all duration-300 ${
+              isNewNode && animationStage === 'entering' ? 'scale-0 rotate-180' : 'scale-100 rotate-0'
+            }`}
             style={{
               background: isManager ? '#f59e0b' : '#3b82f6',
               color: 'white',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              animationDelay: '200ms'
             }}
           >
             {getRoleIcon()}

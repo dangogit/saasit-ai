@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { 
-  Computer, Cloud, Sync, Download, ExternalLink, 
+  Computer, Cloud, RefreshCw, Download, ExternalLink, 
   Clock, Shield, Zap, Github, CheckCircle 
 } from 'lucide-react';
 
@@ -161,7 +161,7 @@ const ExecutionModeSelector = ({
     switch (modeId) {
       case 'local': return <Computer size={24} />;
       case 'cloud': return <Cloud size={24} />;
-      case 'hybrid': return <Sync size={24} />;
+      case 'hybrid': return <RefreshCw size={24} />;
       default: return <Zap size={24} />;
     }
   };

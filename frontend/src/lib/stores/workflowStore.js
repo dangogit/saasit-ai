@@ -50,6 +50,42 @@ const useWorkflowStore = create()(
         reconnectAttempts: 0,
       },
 
+      // Panel Layout State
+      panelLayout: {
+        chatPanel: {
+          width: 300,
+          minWidth: 300,
+          maxWidth: 800,
+          isVisible: false,
+          isExpanded: false,
+          expandedWidth: 500,
+          storageKey: 'saasit-chat-panel-width'
+        },
+        agentLibrary: {
+          width: 350,
+          minWidth: 350,
+          maxWidth: 600,
+          isVisible: true,
+          storageKey: 'saasit-library-panel-width'
+        },
+        executionPanel: {
+          width: 350,
+          minWidth: 300,
+          maxWidth: 600,
+          isVisible: false,
+          storageKey: 'saasit-execution-panel-width'
+        }
+      },
+
+      // Chat enhancement state
+      conversationState: {
+        currentQuestionIndex: 0,
+        totalQuestions: 0,
+        isWaitingForAnswer: false,
+        questionQueue: [],
+        progressPhase: 'initial' // initial, questioning, designing, complete
+      },
+
       // Actions
       setWorkflows: (workflows) =>
         set((state) => {
@@ -300,6 +336,84 @@ const useWorkflowStore = create()(
           state.conversationPhase = 'initial';
           state.projectContext = {};
           state.error = null;
+        }),
+
+      // Panel Layout Actions
+      updatePanelLayout: (panelId, updates) =>
+        set((state) => {
+          if (state.panelLayout[panelId]) {
+            state.panelLayout[panelId] = { ...state.panelLayout[panelId], ...updates };
+          }
+        }),
+
+      setPanelWidth: (panelId, width) =>
+        set((state) => {
+          if (state.panelLayout[panelId]) {
+            const panel = state.panelLayout[panelId];
+            const constrainedWidth = Math.max(panel.minWidth, Math.min(panel.maxWidth, width));
+            state.panelLayout[panelId].width = constrainedWidth;
+          }
+        }),
+
+      togglePanelVisibility: (panelId) =>
+        set((state) => {
+          if (state.panelLayout[panelId]) {
+            state.panelLayout[panelId].isVisible = !state.panelLayout[panelId].isVisible;
+          }
+        }),
+
+      setPanelVisibility: (panelId, isVisible) =>
+        set((state) => {
+          if (state.panelLayout[panelId]) {
+            state.panelLayout[panelId].isVisible = isVisible;
+          }
+        }),
+
+      expandChatPanel: () =>
+        set((state) => {
+          state.panelLayout.chatPanel.isExpanded = true;
+          state.panelLayout.chatPanel.width = state.panelLayout.chatPanel.expandedWidth;
+        }),
+
+      collapseChatPanel: () =>
+        set((state) => {
+          state.panelLayout.chatPanel.isExpanded = false;
+          state.panelLayout.chatPanel.width = state.panelLayout.chatPanel.minWidth;
+        }),
+
+      // Chat Conversation Flow Actions
+      setQuestionQueue: (questions) =>
+        set((state) => {
+          state.conversationState.questionQueue = questions;
+          state.conversationState.totalQuestions = questions.length;
+          state.conversationState.currentQuestionIndex = 0;
+          state.conversationState.progressPhase = 'questioning';
+        }),
+
+      nextQuestion: () =>
+        set((state) => {
+          if (state.conversationState.currentQuestionIndex < state.conversationState.totalQuestions - 1) {
+            state.conversationState.currentQuestionIndex += 1;
+            state.conversationState.isWaitingForAnswer = false;
+          } else {
+            state.conversationState.progressPhase = 'designing';
+          }
+        }),
+
+      setWaitingForAnswer: (isWaiting) =>
+        set((state) => {
+          state.conversationState.isWaitingForAnswer = isWaiting;
+        }),
+
+      resetConversationFlow: () =>
+        set((state) => {
+          state.conversationState = {
+            currentQuestionIndex: 0,
+            totalQuestions: 0,
+            isWaitingForAnswer: false,
+            questionQueue: [],
+            progressPhase: 'initial'
+          };
         }),
 
       // Execution Actions
