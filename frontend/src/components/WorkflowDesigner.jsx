@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   MessageSquare, 
   Play, 
@@ -30,6 +30,7 @@ import { useUser, SignInButton } from '@clerk/clerk-react';
 
 const WorkflowDesigner = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   
   // Add CSS for sparkle animation
   React.useEffect(() => {
@@ -81,21 +82,44 @@ const WorkflowDesigner = () => {
   const {
     nodes,
     edges,
+    projectContext,
     setCurrentWorkflow,
+    setProjectContext,
     updateNode,
     clearError
   } = useWorkflowStore();
 
+  // Initialize project context from navigation state
+  useEffect(() => {
+    const projectContextFromNav = location.state?.projectContext;
+    if (projectContextFromNav) {
+      setProjectContext(projectContextFromNav);
+      
+      // Update workflow name based on project
+      if (projectContextFromNav.type === 'new' && projectContextFromNav.name) {
+        setWorkflowName(`${projectContextFromNav.name} - AI Team`);
+      } else if (projectContextFromNav.type === 'existing' && projectContextFromNav.repository) {
+        setWorkflowName(`${projectContextFromNav.repository.name} - Enhancement Team`);
+      }
+    }
+  }, [location.state, setProjectContext]);
+
   // Initialize workflow on component mount
   useEffect(() => {
+    const workflowId = `workflow-${Date.now()}`;
+    const projectName = projectContext?.name || projectContext?.repository?.name || 'My Project';
+    const finalWorkflowName = projectContext ? 
+      (projectContext.type === 'new' ? `${projectName} - AI Team` : `${projectName} - Enhancement Team`) :
+      workflowName;
+    
     setCurrentWorkflow({
-      id: `workflow-${Date.now()}`,
-      name: workflowName,
+      id: workflowId,
+      name: finalWorkflowName,
       nodes: [],
       edges: []
     });
     clearError();
-  }, [setCurrentWorkflow, clearError, workflowName]);
+  }, [setCurrentWorkflow, clearError, projectContext]);
 
   // Hierarchical layout algorithm
   const createHierarchicalLayout = (template) => {
@@ -297,6 +321,29 @@ const WorkflowDesigner = () => {
       setTemplateLoadingProgress(0);
     }
   }, [setCurrentWorkflow, isSignedIn]);
+
+  // Auto-load template when project context is available (separate useEffect after handleLoadTemplate is defined)
+  useEffect(() => {
+    if (projectContext?.type === 'new' && 
+        projectContext.template && 
+        projectContext.template.id !== 'choose-later' &&
+        isSignedIn &&
+        nodes.length === 0) { // Only auto-load if no nodes exist yet
+      
+      // Find the matching template from workflowTemplates
+      const matchingTemplate = workflowTemplates.find(t => 
+        t.name.toLowerCase().includes(projectContext.template.name.toLowerCase().split(' ')[0]) ||
+        projectContext.template.id === 'saas-starter' && t.id === 'saas-mvp'
+      );
+      
+      if (matchingTemplate) {
+        // Load the template after a short delay to ensure the UI is ready
+        setTimeout(() => {
+          handleLoadTemplate(matchingTemplate);
+        }, 1000);
+      }
+    }
+  }, [projectContext, isSignedIn, nodes.length, handleLoadTemplate]);
 
   const handleExecuteWorkflow = async () => {
     if (!isSignedIn) {
@@ -528,6 +575,33 @@ const WorkflowDesigner = () => {
             SaasIt.ai
           </button>
           <div className="w-px h-6" style={{ background: 'var(--border-light)' }}></div>
+          
+          {/* Project Context Info */}
+          {projectContext && (
+            <>
+              <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-lg text-sm">
+                {projectContext.type === 'new' ? (
+                  <>
+                    <span className="text-blue-600">🚀</span>
+                    <span className="text-gray-700">New Project</span>
+                    {projectContext.template && (
+                      <span className="text-gray-500">• {projectContext.template.name}</span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <span className="text-green-600">📂</span>
+                    <span className="text-gray-700">{projectContext.repository?.name}</span>
+                    {projectContext.analysis?.primary_technology && (
+                      <span className="text-gray-500">• {projectContext.analysis.primary_technology}</span>
+                    )}
+                  </>
+                )}
+              </div>
+              <div className="w-px h-6" style={{ background: 'var(--border-light)' }}></div>
+            </>
+          )}
+          
           <div className="flex items-center gap-2">
             <input
               type="text"
@@ -653,11 +727,33 @@ const WorkflowDesigner = () => {
             </button>
           )}
           
-          <WorkflowCanvas 
-            isExecuting={isExecuting} 
-            isAuthenticated={isSignedIn}
-            onAuthRequired={(feature) => setShowAuthPrompt(feature)}
-          />
+          <div className="relative">
+            <WorkflowCanvas 
+              isExecuting={isExecuting} 
+              isAuthenticated={isSignedIn}
+              onAuthRequired={(feature) => setShowAuthPrompt(feature)}
+            />
+            
+            {/* Chat Hint Overlay for "Choose Later" projects with no agents */}
+            {projectContext?.template?.id === 'choose-later' && nodes.length === 0 && (
+              <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-20 pointer-events-none">
+                <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-8 max-w-md mx-4 text-center">
+                  <div className="w-16 h-16 bg-gradient-to-br from-purple-400 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+                    <MessageSquare size={28} className="text-white" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-4">Ready to chat?</h3>
+                  <p className="text-white/80 text-lg mb-6 leading-relaxed">
+                    Since you chose to build with AI guidance, let's start a conversation! 
+                    Open the chat panel and tell me about your project vision.
+                  </p>
+                  <div className="flex items-center justify-center gap-2 text-purple-200 text-sm">
+                    <Sparkles size={16} />
+                    <span>Click the Chat button to get started</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
           
           {nodes.length === 0 && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">

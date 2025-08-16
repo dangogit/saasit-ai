@@ -3,12 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Sparkles, Users, Zap, Clock, Shield, ArrowRight, X, Mail, User, MessageSquare } from 'lucide-react';
 import { pricingTiers } from '../data/mock';
 import WorkflowIllustration from './WorkflowIllustration';
+import ProjectTypeSelector from './ProjectTypeSelector';
 import { useUser, SignInButton, UserButton } from '@clerk/clerk-react';
-import { Button } from './ui/button';
 
 const LandingPage = () => {
   const navigate = useNavigate();
-  const { isSignedIn, user, isLoaded } = useUser();
+  const { isSignedIn } = useUser();
   const [showContactForm, setShowContactForm] = useState(false);
   const [contactForm, setContactForm] = useState({
     name: '',
@@ -53,7 +53,7 @@ const LandingPage = () => {
             <div className="logo font-mono">SaasIt.ai</div>
             <div className="nav-actions">
               {isSignedIn ? (
-                <UserButton afterSignOutUrl="/" />
+                <UserButton />
               ) : (
                 <>
                   <SignInButton mode="modal">
@@ -61,7 +61,7 @@ const LandingPage = () => {
                       Sign In
                     </button>
                   </SignInButton>
-                  <SignInButton mode="modal" afterSignInUrl="/app">
+                  <SignInButton mode="modal" forceRedirectUrl="/app">
                     <button className="btn-primary">
                       Get Started
                     </button>
@@ -97,23 +97,6 @@ const LandingPage = () => {
             orchestrate them visually, and deploy to the cloud or export for Claude Code.
           </p>
           
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 fade-in-up animation-delay-600">
-            {isSignedIn ? (
-              <button className="btn-primary hover-lift" onClick={handleGetStarted}>
-                Start Building Now
-              </button>
-            ) : (
-              <SignInButton mode="modal" afterSignInUrl="/app">
-                <button className="btn-primary hover-lift">
-                  Start Building Now
-                </button>
-              </SignInButton>
-            )}
-            <button className="btn-secondary hover-lift">
-              Watch Demo
-            </button>
-          </div>
-          
           <p className="caption mt-4 fade-in-up animation-delay-800">
             No Claude Code? No problem! • Export or run in cloud
           </p>
@@ -122,6 +105,9 @@ const LandingPage = () => {
           <WorkflowIllustration />
         </div>
       </section>
+
+      {/* Project Type Selection */}
+      <ProjectTypeSelector />
 
       {/* Why SaasIt.ai Section - Redesigned */}
       <section className="relative py-24 overflow-hidden" style={{ background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)' }}>

@@ -232,6 +232,19 @@ const useWorkflowStore = create()(
         set((state) => {
           state.projectContext = { ...state.projectContext, ...context };
         }),
+
+      // Set initial project context from setup flow
+      setProjectContext: (projectData) =>
+        set((state) => {
+          state.projectContext = {
+            type: projectData.type, // 'new' or 'existing'
+            name: projectData.name,
+            template: projectData.template,
+            repository: projectData.repository,
+            analysis: projectData.analysis,
+            setupAt: new Date().toISOString()
+          };
+        }),
         
       addConversationMessage: (message) =>
         set((state) => {
