@@ -1,12 +1,12 @@
 name: Deploy Backend to Fly.io
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI Tests"]
+    types:
+      - completed
     branches:
       - main
-    paths:
-      - 'backend/**'
-      - '.github/workflows/deploy-backend.yml'
   workflow_dispatch: # Allow manual deployment
 
 jobs:
@@ -63,7 +63,7 @@ jobs:
     name: Deploy to Fly.io
     runs-on: ubuntu-latest
     needs: test
-    if: github.ref == 'refs/heads/main'
+    if: github.event.workflow_run.conclusion == 'success' && contains(github.event.workflow_run.head_commit.modified, 'backend/')
     
     steps:
       - name: Checkout code
