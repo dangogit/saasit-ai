@@ -1,0 +1,453 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.admin.replSetGetStatus()'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        working-directory: ./backend
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov httpx
+
+      - name: Set up test environment
+        working-directory: ./backend
+        run: |
+          echo "MONGO_URL=mongodb://localhost:27017" >> .env.test
+          echo "DB_NAME=saasit_test" >> .env.test
+          echo "ANTHROPIC_API_KEY=test_key" >> .env.test
+          echo "CLERK_SECRET_KEY=test_clerk_secret" >> .env.test
+          echo "JWT_SECRET=test_jwt_secret_key_for_ci_testing_purposes" >> .env.test
+
+      - name: Wait for MongoDB
+        run: |
+          for i in {1..30}; do
+            if mongosh --eval "db.admin.ping()" --quiet; then
+              echo "MongoDB is ready"
+              break
+            fi
+            echo "Waiting for MongoDB... ($i/30)"
+            sleep 2
+          done
+
+      - name: Run backend E2E tests
+        working-directory: ./backend
+        env:
+          TESTING: true
+          MONGO_URL: mongodb://localhost:27017
+          DB_NAME: saasit_test
+        run: |
+          pytest tests/e2e/ -v --tb=short --cov=app --cov-report=xml
+
+      - name: Upload backend coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./backend/coverage.xml
+          flags: backend
+          name: backend-coverage
+
+  frontend-e2e-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.admin.replSetGetStatus()'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: |
+            frontend/package-lock.json
+
+      - name: Set up Python for backend
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: ./frontend
+        run: npx playwright install --with-deps
+
+      - name: Set up test environment
+        run: |
+          # Backend environment
+          echo "MONGO_URL=mongodb://localhost:27017" >> backend/.env.test
+          echo "DB_NAME=saasit_test" >> backend/.env.test
+          echo "ANTHROPIC_API_KEY=test_key" >> backend/.env.test
+          echo "CLERK_SECRET_KEY=test_clerk_secret" >> backend/.env.test
+          echo "JWT_SECRET=test_jwt_secret_key_for_ci_testing_purposes" >> backend/.env.test
+          
+          # Frontend environment
+          echo "REACT_APP_API_URL=http://localhost:8000" >> frontend/.env.test
+          echo "REACT_APP_CLERK_PUBLISHABLE_KEY=pk_test_example" >> frontend/.env.test
+
+      - name: Wait for MongoDB
+        run: |
+          for i in {1..30}; do
+            if mongosh --eval "db.admin.ping()" --quiet; then
+              echo "MongoDB is ready"
+              break
+            fi
+            echo "Waiting for MongoDB... ($i/30)"
+            sleep 2
+          done
+
+      - name: Start backend server
+        working-directory: ./backend
+        env:
+          TESTING: true
+          MONGO_URL: mongodb://localhost:27017
+          DB_NAME: saasit_test
+        run: |
+          uvicorn server:app --host 0.0.0.0 --port 8000 &
+          echo $! > backend.pid
+          sleep 10
+
+      - name: Start frontend development server
+        working-directory: ./frontend
+        env:
+          REACT_APP_API_URL: http://localhost:8000
+          CI: false
+        run: |
+          npm start &
+          echo $! > frontend.pid
+          
+          # Wait for frontend to be ready
+          timeout 120 bash -c 'until curl -f http://localhost:3000; do sleep 2; done'
+
+      - name: Run E2E tests
+        working-directory: ./frontend
+        env:
+          CI: true
+        run: |
+          npx playwright test --reporter=html
+
+      - name: Upload E2E test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
+
+      - name: Upload E2E test videos
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: playwright-videos
+          path: frontend/test-results/
+          retention-days: 7
+
+      - name: Stop servers
+        if: always()
+        run: |
+          if [ -f backend/backend.pid ]; then
+            kill $(cat backend/backend.pid) || true
+          fi
+          if [ -f frontend/frontend.pid ]; then
+            kill $(cat frontend/frontend.pid) || true
+          fi
+
+  cross-browser-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.admin.replSetGetStatus()'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    strategy:
+      matrix:
+        browser: [chromium, firefox, webkit]
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd backend && pip install -r requirements.txt
+          cd frontend && npm ci
+
+      - name: Install Playwright browsers
+        working-directory: ./frontend
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Set up test environment
+        run: |
+          echo "MONGO_URL=mongodb://localhost:27017" >> backend/.env.test
+          echo "DB_NAME=saasit_test_${{ matrix.browser }}" >> backend/.env.test
+          echo "ANTHROPIC_API_KEY=test_key" >> backend/.env.test
+          echo "CLERK_SECRET_KEY=test_clerk_secret" >> backend/.env.test
+          echo "JWT_SECRET=test_jwt_secret_key_for_ci_testing_purposes" >> backend/.env.test
+
+      - name: Start servers
+        run: |
+          cd backend && uvicorn server:app --host 0.0.0.0 --port 8000 &
+          cd frontend && npm start &
+          sleep 15
+
+      - name: Run cross-browser tests
+        working-directory: ./frontend
+        env:
+          CI: true
+        run: |
+          npx playwright test --project=${{ matrix.browser }} --reporter=html
+
+      - name: Upload browser-specific results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: frontend/playwright-report/
+          retention-days: 7
+
+  accessibility-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd backend && pip install -r requirements.txt
+          cd frontend && npm ci
+
+      - name: Install Playwright browsers
+        working-directory: ./frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Set up test environment
+        run: |
+          echo "MONGO_URL=mongodb://localhost:27017" >> backend/.env.test
+          echo "DB_NAME=saasit_accessibility_test" >> backend/.env.test
+          echo "ANTHROPIC_API_KEY=test_key" >> backend/.env.test
+          echo "CLERK_SECRET_KEY=test_clerk_secret" >> backend/.env.test
+          echo "JWT_SECRET=test_jwt_secret_key_for_ci_testing_purposes" >> backend/.env.test
+
+      - name: Start servers
+        run: |
+          cd backend && uvicorn server:app --host 0.0.0.0 --port 8000 &
+          cd frontend && npm start &
+          sleep 15
+
+      - name: Run accessibility tests
+        working-directory: ./frontend
+        env:
+          CI: true
+        run: |
+          npx playwright test accessibility.spec.ts --reporter=html
+
+      - name: Upload accessibility results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: accessibility-report
+          path: frontend/playwright-report/
+          retention-days: 14
+
+  performance-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd backend && pip install -r requirements.txt
+          cd frontend && npm ci
+
+      - name: Install Playwright browsers
+        working-directory: ./frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Set up test environment
+        run: |
+          echo "MONGO_URL=mongodb://localhost:27017" >> backend/.env.test
+          echo "DB_NAME=saasit_performance_test" >> backend/.env.test
+          echo "ANTHROPIC_API_KEY=test_key" >> backend/.env.test
+          echo "CLERK_SECRET_KEY=test_clerk_secret" >> backend/.env.test
+          echo "JWT_SECRET=test_jwt_secret_key_for_ci_testing_purposes" >> backend/.env.test
+
+      - name: Start servers
+        run: |
+          cd backend && uvicorn server:app --host 0.0.0.0 --port 8000 &
+          cd frontend && npm start &
+          sleep 15
+
+      - name: Run performance tests
+        working-directory: ./backend
+        env:
+          TESTING: true
+          MONGO_URL: mongodb://localhost:27017
+          DB_NAME: saasit_performance_test
+        run: |
+          pytest tests/e2e/test_onboarding_flow.py::TestOnboardingPerformance -v
+
+      - name: Upload performance results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: performance-report
+          path: backend/performance-results/
+          retention-days: 7
+
+  test-summary:
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-e2e-tests]
+    if: always()
+
+    steps:
+      - name: Test Results Summary
+        run: |
+          echo "## Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.backend-tests.result }}" = "success" ]; then
+            echo "✅ Backend API Tests: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Backend API Tests: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.frontend-e2e-tests.result }}" = "success" ]; then
+            echo "✅ Frontend E2E Tests: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Frontend E2E Tests: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts Available:" >> $GITHUB_STEP_SUMMARY
+          echo "- Playwright Test Reports" >> $GITHUB_STEP_SUMMARY
+          echo "- Test Videos (on failure)" >> $GITHUB_STEP_SUMMARY
+          echo "- Code Coverage Reports" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check overall success
+        if: needs.backend-tests.result != 'success' || needs.frontend-e2e-tests.result != 'success'
+        run: |
+          echo "One or more test suites failed"
+          exit 1

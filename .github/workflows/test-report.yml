@@ -1,0 +1,173 @@
+name: Test Report Generation
+
+on:
+  workflow_run:
+    workflows: ["E2E Tests"]
+    types:
+      - completed
+
+permissions:
+  actions: read
+  checks: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  test-report:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion != 'skipped' }}
+
+    steps:
+      - name: Download test artifacts
+        uses: actions/github-script@v6
+        with:
+          script: |
+            let allArtifacts = await github.rest.actions.listWorkflowRunArtifacts({
+               owner: context.repo.owner,
+               repo: context.repo.repo,
+               run_id: ${{github.event.workflow_run.id }},
+            });
+            
+            let matchArtifacts = allArtifacts.data.artifacts.filter((artifact) => {
+              return artifact.name.includes("playwright-report") || 
+                     artifact.name.includes("coverage") ||
+                     artifact.name.includes("test-results");
+            });
+            
+            for (const artifact of matchArtifacts) {
+              let download = await github.rest.actions.downloadArtifact({
+                 owner: context.repo.owner,
+                 repo: context.repo.repo,
+                 artifact_id: artifact.id,
+                 archive_format: 'zip',
+              });
+              
+              let fs = require('fs');
+              fs.writeFileSync(`${process.env.GITHUB_WORKSPACE}/${artifact.name}.zip`, Buffer.from(download.data));
+            }
+
+      - name: Extract artifacts
+        run: |
+          for zip in *.zip; do
+            if [ -f "$zip" ]; then
+              unzip -q "$zip" -d "${zip%.zip}/"
+            fi
+          done
+
+      - name: Publish Test Results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: 'E2E Test Results'
+          path: '**/junit.xml, **/test-results.xml'
+          reporter: java-junit
+          fail-on-error: true
+
+      - name: Generate Test Summary
+        if: always()
+        run: |
+          echo "# 🧪 Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Backend test results
+          if [ -f "backend-coverage/coverage.xml" ]; then
+            echo "## 🔧 Backend API Tests" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Backend tests completed with coverage report" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Frontend test results
+          if [ -d "playwright-report" ]; then
+            echo "## 🌐 Frontend E2E Tests" >> $GITHUB_STEP_SUMMARY
+            
+            # Count test files
+            TEST_COUNT=$(find playwright-report -name "*.html" | wc -l)
+            echo "📊 Generated $TEST_COUNT test report files" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Cross-browser results
+          for browser in chromium firefox webkit; do
+            if [ -d "playwright-report-$browser" ]; then
+              echo "🌍 Cross-browser testing ($browser): Complete" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+          
+          # Accessibility results
+          if [ -d "accessibility-report" ]; then
+            echo "♿ Accessibility testing: Complete" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📋 Test Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- Detailed test reports are available in the workflow artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- Screenshots and videos are captured for failed tests" >> $GITHUB_STEP_SUMMARY
+          echo "- Coverage reports show code quality metrics" >> $GITHUB_STEP_SUMMARY
+
+      - name: Comment on PR
+        uses: actions/github-script@v6
+        if: github.event.workflow_run.event == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            
+            // Get PR number from the original workflow
+            const { data: pullRequests } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: '${{ github.event.workflow_run.head_sha }}'
+            });
+            
+            if (pullRequests.length === 0) return;
+            
+            const prNumber = pullRequests[0].number;
+            
+            // Check test results
+            const success = '${{ github.event.workflow_run.conclusion }}' === 'success';
+            const icon = success ? '✅' : '❌';
+            const status = success ? 'PASSED' : 'FAILED';
+            
+            const comment = `## ${icon} E2E Test Results: ${status}
+            
+            **Workflow Run:** [#${{ github.event.workflow_run.run_number }}](${{ github.event.workflow_run.html_url }})
+            **Commit:** \`${{ github.event.workflow_run.head_sha }}\`
+            
+            ### Test Coverage:
+            - 🔧 Backend API Tests
+            - 🌐 Frontend E2E Tests  
+            - ♿ Accessibility Tests
+            - 🌍 Cross-browser Tests (Chrome, Firefox, Safari)
+            
+            ${success ? 
+              '🎉 All tests passed! Your changes are ready for review.' : 
+              '⚠️ Some tests failed. Please check the workflow logs for details.'
+            }
+            
+            [View detailed results](${{ github.event.workflow_run.html_url }})`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: comment
+            });
+
+      - name: Update commit status
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const success = '${{ github.event.workflow_run.conclusion }}' === 'success';
+            const state = success ? 'success' : 'failure';
+            const description = success ? 
+              'All E2E tests passed' : 
+              'Some E2E tests failed';
+            
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: '${{ github.event.workflow_run.head_sha }}',
+              state: state,
+              target_url: '${{ github.event.workflow_run.html_url }}',
+              description: description,
+              context: 'E2E Tests'
+            });

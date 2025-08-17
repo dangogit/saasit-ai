@@ -1,0 +1,126 @@
+services:
+  # MongoDB for testing
+  mongodb:
+    image: mongo:7.0
+    container_name: saasit-test-mongo
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=testadmin
+      - MONGO_INITDB_ROOT_PASSWORD=testpassword
+      - MONGO_INITDB_DATABASE=saasit_test
+    volumes:
+      - test_mongodb_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand({ping: 1})"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  # Test backend (optional - for full integration tests)
+  test-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.test
+    container_name: saasit-test-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGO_URL=mongodb://testadmin:testpassword@mongodb:27017/saasit_test?authSource=admin
+      - DB_NAME=saasit_test
+      - JWT_SECRET=test_jwt_secret_key_for_testing_purposes_only
+      - JWT_ALGORITHM=HS256
+      - JWT_EXPIRATION_MINUTES=30
+      - CORS_ORIGINS=["http://localhost:3000", "http://test-frontend:3000"]
+      - ANTHROPIC_API_KEY=test_anthropic_key
+      - CLERK_SECRET_KEY=test_clerk_secret_key
+      - TESTING=true
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    volumes:
+      - ./backend:/app
+      - /app/venv  # Exclude venv from volume mount
+    restart: unless-stopped
+    profiles:
+      - full-integration  # Only start with --profile full-integration
+
+  # Test frontend (optional - for full integration tests)
+  test-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.test
+    container_name: saasit-test-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://test-backend:8000
+      - REACT_APP_CLERK_PUBLISHABLE_KEY=pk_test_example
+      - NODE_ENV=test
+      - E2E_TEST_MODE=true
+    depends_on:
+      test-backend:
+        condition: service_healthy
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules  # Exclude node_modules from volume mount
+    restart: unless-stopped
+    profiles:
+      - full-integration  # Only start with --profile full-integration
+
+  # Playwright test runner (for running E2E tests in container)
+  playwright-tests:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.playwright
+    container_name: saasit-playwright-tests
+    environment:
+      - CI=true
+      - PLAYWRIGHT_BASE_URL=http://test-frontend:3000
+      - API_BASE_URL=http://test-backend:8000
+    depends_on:
+      test-frontend:
+        condition: service_healthy
+      test-backend:
+        condition: service_healthy
+    networks:
+      - test-network
+    volumes:
+      - ./frontend/e2e:/app/e2e
+      - ./frontend/playwright-report:/app/playwright-report
+      - ./frontend/test-results:/app/test-results
+      - ./test-reports:/app/reports
+    working_dir: /app
+    command: ["npx", "playwright", "test", "--config=playwright.ci.config.ts"]
+    profiles:
+      - full-integration  # Only start with --profile full-integration
+
+networks:
+  test-network:
+    driver: bridge
+    name: saasit-test-network
+
+volumes:
+  test_mongodb_data:
+    name: saasit-test-mongodb-data

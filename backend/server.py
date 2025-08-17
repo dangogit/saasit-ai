@@ -17,7 +17,7 @@ from pymongo import IndexModel
 
 # Import app modules
 from app.config import settings
-from app.routers import auth, projects, executions, websocket, github, execution_modes, project_intelligence
+from app.routers import auth, projects, executions, websocket, github, execution_modes, project_intelligence, onboarding
 from app.middleware.auth import get_current_active_user, check_rate_limit
 from app.middleware.clerk_auth import require_clerk_user
 from app.middleware.security import setup_security_middleware
@@ -131,6 +131,18 @@ async def create_database_indexes(db):
         # Create terminal outputs indexes
         await db.terminal_outputs.create_indexes(terminal_outputs_indexes)
         logger.info("Created terminal_outputs collection indexes")
+        
+        # Onboarding progress collection indexes
+        onboarding_indexes = [
+            IndexModel("user_id", unique=True, name="onboarding_user_id_unique"),
+            IndexModel("email", name="onboarding_email_index"),
+            IndexModel("saved_at", name="onboarding_saved_at_index"),
+            IndexModel("version", name="onboarding_version_index")
+        ]
+        
+        # Create onboarding indexes
+        await db.onboarding_progress.create_indexes(onboarding_indexes)
+        logger.info("Created onboarding_progress collection indexes")
         
         logger.info("All database indexes created successfully")
         
@@ -496,6 +508,7 @@ api_v1_router.include_router(executions.router)
 api_v1_router.include_router(github.router)
 api_v1_router.include_router(execution_modes.router)
 api_v1_router.include_router(project_intelligence.router)
+api_v1_router.include_router(onboarding.router)
 
 # Include WebSocket router at app level
 app.include_router(websocket.router)

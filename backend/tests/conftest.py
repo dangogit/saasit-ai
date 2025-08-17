@@ -6,14 +6,20 @@ import asyncio
 from typing import AsyncGenerator, Generator
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from fastapi.testclient import TestClient
+from httpx import AsyncClient
 from datetime import datetime
 import os
+import httpx
+
+# Configure pytest-asyncio
+pytest_plugins = ('pytest_asyncio',)
 
 # Set test environment
 os.environ["TESTING"] = "true"
-os.environ["MONGO_URL"] = os.getenv("TEST_MONGO_URL", "mongodb://localhost:27017")
+os.environ["MONGO_URL"] = "mongodb://localhost:27017"
 os.environ["DB_NAME"] = "saasit_test"
 os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only"
+os.environ["JWT_SECRET"] = "test-jwt-secret-key-for-testing-only"
 
 from server import app
 from app.config import settings
@@ -21,15 +27,15 @@ from app.services.auth_service import AuthService
 from app.models.user import UserCreate
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def event_loop() -> Generator:
-    """Create an instance of the default event loop for the test session."""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
+    """Create an instance of the default event loop for each test function."""
+    loop = asyncio.new_event_loop()
     yield loop
     loop.close()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 async def db_client() -> AsyncGenerator[AsyncIOMotorClient, None]:
     """Get test database client"""
     client = AsyncIOMotorClient(os.environ["MONGO_URL"])
@@ -46,6 +52,8 @@ async def test_db(db_client: AsyncIOMotorClient) -> AsyncGenerator[AsyncIOMotorD
     await db.users.delete_many({})
     await db.projects.delete_many({})
     await db.status_checks.delete_many({})
+    await db.onboarding_progress.delete_many({})
+    await db.workflow_executions.delete_many({})
     
     yield db
     
@@ -53,13 +61,8 @@ async def test_db(db_client: AsyncIOMotorClient) -> AsyncGenerator[AsyncIOMotorD
     await db.users.delete_many({})
     await db.projects.delete_many({})
     await db.status_checks.delete_many({})
-
-
-@pytest.fixture
-def client(test_db: AsyncIOMotorDatabase) -> TestClient:
-    """Get test client with test database"""
-    app.state.db = test_db
-    return TestClient(app)
+    await db.onboarding_progress.delete_many({})
+    await db.workflow_executions.delete_many({})
 
 
 @pytest.fixture
@@ -171,3 +174,81 @@ async def test_users_with_tiers(test_db: AsyncIOMotorDatabase) -> dict:
         }
     
     return users
+
+
+@pytest.fixture
+def sync_client(test_db: AsyncIOMotorDatabase) -> TestClient:
+    """Get synchronous test client for non-async operations"""
+    # Initialize app state if it doesn't exist
+    if not hasattr(app, 'state'):
+        from types import SimpleNamespace
+        app.state = SimpleNamespace()
+    
+    # Inject test database into app state
+    app.state.db = test_db
+    
+    return TestClient(app)
+
+
+@pytest.fixture
+async def client(test_db: AsyncIOMotorDatabase) -> AsyncGenerator[AsyncClient, None]:
+    """Get async test client with direct app state injection"""
+    from fastapi.testclient import TestClient
+    from types import SimpleNamespace
+    
+    # Ensure app has state and inject test database
+    if not hasattr(app, 'state'):
+        app.state = SimpleNamespace()
+    app.state.db = test_db
+    
+    # Create test client
+    with TestClient(app) as test_client:
+        # Create adapter for async interface
+        class AsyncTestClientAdapter:
+            def __init__(self, sync_client):
+                self._client = sync_client
+                self.headers = {}
+            
+            async def post(self, url, **kwargs):
+                headers = {**self.headers, **kwargs.get('headers', {})}
+                kwargs['headers'] = headers
+                response = self._client.post(url, **kwargs)
+                
+                class ResponseAdapter:
+                    def __init__(self, resp):
+                        self.status_code = resp.status_code
+                        self.headers = resp.headers
+                        self.content = resp.content
+                        self.text = resp.text
+                        self._json_data = None
+                    
+                    def json(self):
+                        if self._json_data is None:
+                            import json
+                            self._json_data = json.loads(response.content)
+                        return self._json_data
+                
+                return ResponseAdapter(response)
+            
+            async def get(self, url, **kwargs):
+                headers = {**self.headers, **kwargs.get('headers', {})}
+                kwargs['headers'] = headers
+                response = self._client.get(url, **kwargs)
+                
+                class ResponseAdapter:
+                    def __init__(self, resp):
+                        self.status_code = resp.status_code
+                        self.headers = resp.headers
+                        self.content = resp.content
+                        self.text = resp.text
+                        self._json_data = None
+                    
+                    def json(self):
+                        if self._json_data is None:
+                            import json
+                            self._json_data = json.loads(response.content)
+                        return self._json_data
+                
+                return ResponseAdapter(response)
+        
+        yield AsyncTestClientAdapter(test_client)
