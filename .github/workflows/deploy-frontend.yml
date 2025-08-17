@@ -1,0 +1,108 @@
+name: Deploy Frontend to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch: # Allow manual deployment
+
+jobs:
+  test-frontend:
+    name: Test Frontend
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm run build
+        env:
+          REACT_APP_API_URL: https://saasit-ai-backend-dgoldman.fly.dev
+          REACT_APP_CLERK_PUBLISHABLE_KEY: ${{ secrets.REACT_APP_CLERK_PUBLISHABLE_KEY }}
+
+      - name: Run frontend E2E tests
+        run: |
+          cd frontend
+          npx playwright install --with-deps
+          npm run test:e2e:ci
+        env:
+          CI: true
+
+  deploy-frontend:
+    name: Deploy to Cloudflare Pages
+    runs-on: ubuntu-latest
+    needs: test-frontend
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Build for production
+        run: |
+          cd frontend
+          npm run build
+        env:
+          REACT_APP_API_URL: https://saasit-ai-backend-dgoldman.fly.dev
+          REACT_APP_CLERK_PUBLISHABLE_KEY: ${{ secrets.REACT_APP_CLERK_PUBLISHABLE_KEY }}
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy frontend/build --project-name=saasit-ai --compatibility-date=2024-01-01
+
+      - name: Verify frontend deployment
+        run: |
+          # Wait for deployment
+          sleep 30
+          
+          # Check if site is accessible
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://saasit.ai)
+          if [ "$response" != "200" ]; then
+            echo "Frontend health check failed with status: $response"
+            exit 1
+          fi
+          
+          echo "✅ Frontend deployment successful!"
+
+      - name: Post deployment notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "🌐 Frontend successfully deployed to production!"
+            echo "URL: https://saasit.ai"
+          else
+            echo "❌ Frontend deployment failed"
+          fi
