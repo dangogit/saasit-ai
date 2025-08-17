@@ -4,6 +4,7 @@ import "./App.css";
 import LandingPage from "./components/LandingPage";
 import WorkflowDesigner from "./components/WorkflowDesigner";
 import ProjectSetupFlow from "./components/ProjectSetupFlow";
+import OnboardingFlow from "./components/onboarding/OnboardingFlow";
 import ClerkAuthProvider from "./components/providers/ClerkAuthProvider";
 import { RedirectToSignIn, SignedIn, SignedOut } from "@clerk/clerk-react";
 
@@ -14,6 +15,19 @@ function App() {
         <div className="App">
           <Routes>
             <Route path="/" element={<LandingPage />} />
+            <Route 
+              path="/onboarding" 
+              element={
+                <>
+                  <SignedIn>
+                    <OnboardingFlow />
+                  </SignedIn>
+                  <SignedOut>
+                    <RedirectToSignIn />
+                  </SignedOut>
+                </>
+              } 
+            />
             <Route 
               path="/app/setup" 
               element={

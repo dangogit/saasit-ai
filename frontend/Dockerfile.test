@@ -1,0 +1,41 @@
+# Test-specific Dockerfile for frontend
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apk add --no-cache \
+    curl \
+    bash
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production=false
+
+# Install Playwright and browsers
+RUN npx playwright install --with-deps
+
+# Copy application code
+COPY . .
+
+# Create test environment
+RUN echo "REACT_APP_API_URL=http://test-backend:8000" > .env.test && \
+    echo "REACT_APP_CLERK_PUBLISHABLE_KEY=pk_test_example" >> .env.test && \
+    echo "NODE_ENV=test" >> .env.test && \
+    echo "E2E_TEST_MODE=true" >> .env.test && \
+    echo "DISABLE_HOT_RELOAD=true" >> .env.test
+
+# Build the application for testing
+RUN npm run build
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=10s --timeout=5s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:3000 || exit 1
+
+# Serve the built application
+CMD ["npx", "serve", "-s", "build", "-l", "3000"]

@@ -1,0 +1,23 @@
+# Playwright test runner Dockerfile
+FROM mcr.microsoft.com/playwright:v1.48.0-focal
+
+WORKDIR /app
+
+# Install Node.js dependencies
+COPY package*.json ./
+RUN npm ci
+
+# Copy test files and configuration
+COPY playwright*.config.ts ./
+COPY e2e/ ./e2e/
+COPY tsconfig.json ./
+
+# Create test results directories
+RUN mkdir -p playwright-report test-results reports
+
+# Set environment variables for testing
+ENV CI=true
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
+# Default command
+CMD ["npx", "playwright", "test", "--config=playwright.ci.config.ts"]

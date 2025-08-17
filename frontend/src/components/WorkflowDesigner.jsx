@@ -85,6 +85,8 @@ const WorkflowDesigner = () => {
     projectContext,
     setCurrentWorkflow,
     setProjectContext,
+    setNodes,
+    setEdges,
     updateNode,
     clearError
   } = useWorkflowStore();
@@ -281,28 +283,20 @@ const WorkflowDesigner = () => {
       // Generate template layout
       const { nodes: templateNodes, edges: templateEdges } = createHierarchicalLayout(template);
       
-      // Apply template with staggered node appearance
+      // Update the current workflow metadata
       setCurrentWorkflow({
         id: `workflow-${Date.now()}`,
         name: template.name,
-        nodes: [], // Start with empty to trigger animations
-        edges: []
+        nodes: templateNodes,
+        edges: templateEdges
       });
       setWorkflowName(template.name);
       
-      // Add nodes with staggered animation
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Directly update the store with the template nodes and edges
+      setNodes(templateNodes);
+      setEdges(templateEdges);
       
-      for (let i = 0; i < templateNodes.length; i++) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-        setCurrentWorkflow(prev => ({
-          ...prev,
-          nodes: [...prev.nodes, templateNodes[i]],
-          edges: i === templateNodes.length - 1 ? templateEdges : prev.edges
-        }));
-      }
-      
-      // Trigger zoom-to-fit after all nodes are placed
+      // Trigger zoom-to-fit after nodes are set
       setTimeout(() => {
         const reactFlowInstance = window.reactFlowInstance;
         if (reactFlowInstance) {
@@ -320,7 +314,16 @@ const WorkflowDesigner = () => {
       setIsLoadingTemplate(false);
       setTemplateLoadingProgress(0);
     }
-  }, [setCurrentWorkflow, isSignedIn]);
+  }, [setCurrentWorkflow, setNodes, setEdges, isSignedIn]);
+
+  // Template ID mapping between ProjectSetupFlow and workflowTemplates
+  const templateIdMap = {
+    'saas-starter': 'saas-mvp',
+    'ai-app': 'ai-powered-tool', 
+    'mobile-first': 'mobile-app',
+    'e-commerce': 'marketing-website', // Use existing template as fallback
+    'blank': 'saas-mvp' // Use SaaS MVP as fallback for blank
+  };
 
   // Auto-load template when project context is available (separate useEffect after handleLoadTemplate is defined)
   useEffect(() => {
@@ -330,17 +333,18 @@ const WorkflowDesigner = () => {
         isSignedIn &&
         nodes.length === 0) { // Only auto-load if no nodes exist yet
       
-      // Find the matching template from workflowTemplates
-      const matchingTemplate = workflowTemplates.find(t => 
-        t.name.toLowerCase().includes(projectContext.template.name.toLowerCase().split(' ')[0]) ||
-        projectContext.template.id === 'saas-starter' && t.id === 'saas-mvp'
-      );
+      // Find the matching template using the ID mapping
+      const templateId = templateIdMap[projectContext.template.id];
+      const matchingTemplate = workflowTemplates.find(t => t.id === templateId);
       
       if (matchingTemplate) {
+        console.log('Loading template:', matchingTemplate.name, 'for project type:', projectContext.template.id);
         // Load the template after a short delay to ensure the UI is ready
         setTimeout(() => {
           handleLoadTemplate(matchingTemplate);
         }, 1000);
+      } else {
+        console.warn('No matching template found for:', projectContext.template.id);
       }
     }
   }, [projectContext, isSignedIn, nodes.length, handleLoadTemplate]);
