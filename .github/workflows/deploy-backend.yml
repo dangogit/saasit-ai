@@ -85,7 +85,7 @@ jobs:
           sleep 30
           
           # Check health endpoint
-          response=$(curl -s -o /dev/null -w "%{http_code}" https://saasit-ai-backend-dgoldman.fly.dev/api/)
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://saasit-ai-backend-dgoldman.fly.dev/)
           if [ "$response" != "200" ]; then
             echo "Deployment health check failed with status: $response"
             exit 1
